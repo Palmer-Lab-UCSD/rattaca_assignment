@@ -1,0 +1,19 @@
+{
+    "project" : "proj_1",
+    "trait" : "trait_1", 
+    "assignment_type" : "rattaca",
+    "n_rats" : {
+        "total" : 24,
+        "male" : {
+            "total" : 12,
+            "high" : 6,
+            "low" : 6
+        },
+        "female" : {
+            "total" : 12,
+            "high" : 6,
+            "low" : 6                           
+        }
+    }        
+ }
+    

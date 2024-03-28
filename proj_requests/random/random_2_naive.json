@@ -1,0 +1,10 @@
+{
+    "project" : "random_2",
+    "trait" : "random_2_naive",
+    "assignment_type" : "random",
+    "n_rats": {
+        "total" : 30,
+        "male" : 15,
+        "female" : 15
+    }
+}

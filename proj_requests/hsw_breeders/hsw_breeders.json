@@ -1,0 +1,11 @@
+{
+    "project" : "hsw_breeders",
+    "trait" : "hsw_breeder",
+    "assignment_type" : "hsw_breeders",
+    "n_rats": {
+        "total" : 140,
+        "male" : 70,
+        "female" : 70    
+    }    
+}
+
