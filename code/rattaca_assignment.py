@@ -79,34 +79,61 @@ def main(args):
     best_rfids = None
 
     # permute the assignment order to all requests
-    n_requests = len(args.requests)
+    n_requests = len(all_requests)
     for permuted_order in permutations(range(n_requests)):
-        
-        tmp_unavailable_rfids = []
+        print(f'permuted_order: {permuted_order}')
+        proposed_rfids = {}
         permutation_delta = 0
+        project_deltas = []
 
-        # for each project request in the current permutation 
+        # for each project request in the current permutation... 
         for current_project in permuted_order:
-            # get the project's overall delta & set of animals assigned 
-            # to the project
-            project_delta, proposed_rfids = all_requests[current_project]\
-                .proposal(tmp_unavailable_rfids) ### edit proposal() ###
+            print(f'current_project: {current_project}')
+            # ...propose animals for assignment to the project 
+            # and add the project's delta to the total delta for the permutation
+            project_delta, proposal_rfids = all_requests[current_project]\
+                .proposal(proposed_rfids) 
             permutation_delta += project_delta
-            tmp_unavailable_rfids.append(proposed_rfids) ### edit append() ###
-
-        if permutation_delta > best_delta:
+            project_deltas.append(project_delta)
+            proposed_rfids[current_project] = proposal_rfids
+            print(f'proposal_rfids: {proposal_rfids}')
+            print(f'permutation_delta: {permutation_delta}')
+            print(f'project_deltas: {project_deltas}')
+        # keep the proposed rfids for assignment from the permutation 
+        # that maximizes delta
+        if permutation_delta >= best_delta:
             best_delta = permutation_delta
             best_permutation = permuted_order
-            best_rfids = tmp_unavailable_rfids
-    
+            best_rfids = proposed_rfids
+        print(f'current best_permutation: {best_permutation}')
+    print(f'final best_permutation: {best_permutation}')
+    print(f'best_rfids: {best_rfids}')
+    print(f'best_delta: {best_delta}')
     # assign rats to each request in the permuted order that maximizes delta
-    for i, request in enumerate(all_requests):
+    for project_index in best_permutation:
+        print(project_index)
+        request = all_requests[project_index]
 
-        for project_index in best_permutation:
-            if i == project_index:
-                request.update(best_rfids[i])
-            else:
-                request.remove(best_rfids[i])
+        assign_rfids = best_rfids[project_index]
+        remove_rfids = [item for sublist in \
+                        [v for k,v in best_rfids.items() if k != project_index] \
+                            for item in sublist]
+        print(assign_rfids)
+        print(remove_rfids)
+
+        request.assign(assign_rfids)
+        request.remove(remove_rfids)
+        
+
+    # for i, request in enumerate(all_requests):
+    #     print(f'request: {request.project}')
+    #     for project_index in best_permutation:
+    #         if i == project_index:
+    #             request.assign(best_rfids[i])
+    #             print(f'assign: {best_rfids}')
+    #         else:
+    #             request.remove(best_rfids[i])
+    #             print(f'remove: {best_rfids}')
 
 
 ### classes ###
@@ -115,20 +142,45 @@ class Request:
     
     def __init__(self, request_file, args):
         
+        # initialize the delta for the request
+        self.delta = 0
+
+        # initialize dictionaries to hold assigned rats
+        self.assigned_males_high = {}   # unused for now - use for sex-specific assignment
+        self.assigned_males_low = {}    # unused for now - use for sex-specific assignment
+        self.assigned_females_high = {} # unused for now - use for sex-specific assignment
+        self.assigned_females_low = {}  # unused for now - use for sex-specific assignment
+        self.assigned_high = {}         # tmp - remove after incorporating sex-specific assignments
+        self.assigned_low = {}          # tmp - remove after incorporating sex-specific assignments
+
+        # initialize the number of assigned rats
+        self.n_assigned_males_high = len(self.assigned_males_high)     # unused for now
+        self.n_assigned_males_low = len(self.assigned_males_low)       # unused for now
+        self.n_assigned_females_high = len(self.assigned_females_high) # unused for now
+        self.n_assigned_females_low = len(self.assigned_females_low)   # unused for now
+        self.n_assigned_high = len(self.assigned_high)                 # temporary for now
+        self.n_assigned_low = len(self.assigned_low)                   # temporary for now
+        self.n_assigned_total_rats = sum([self.n_assigned_high, self.n_assigned_low])
+
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
 
             req_metadat = json.load(rf)
+            self.assignment_type = req_metadat['assignment_type']
             self.project = req_metadat['project']
             self.trait = req_metadat['trait']
-            self.assignment_type = req_metadat['assignment_type']
-            self.total_rats = req_metadat['n_rats']['total']
-            self.total_males = req_metadat['n_rats']['male']['total']
-            self.total_females = req_metadat['n_rats']['female']['total']
-            self.n_males_high = req_metadat['n_rats']['male']['high']
-            self.n_males_low = req_metadat['n_rats']['male']['low']
-            self.n_females_high = req_metadat['n_rats']['female']['high']
-            self.n_females_low = req_metadat['n_rats']['female']['low']
+            self.n_requested_total_rats = req_metadat['n_rats']['total']
+            self.n_requested_total_males = req_metadat['n_rats']['male']['total']
+            self.n_requested_total_females = req_metadat['n_rats']['female']['total']
+            self.n_requested_males_high = req_metadat['n_rats']['male']['high']
+            self.n_requested_males_low = req_metadat['n_rats']['male']['low']
+            self.n_requested_females_high = req_metadat['n_rats']['female']['high']
+            self.n_requested_females_low = req_metadat['n_rats']['female']['low']
+            self.n_requested_high = self.n_requested_males_high + self.n_requested_females_high # tmp for now
+            self.n_requested_low = self.n_requested_males_low + self.n_requested_females_low # tmp for now
+            
+        # initialize the number of rats that still need to be assigned
+        self.n_assignments_remaining = self.n_requested_total_rats - self.n_assigned_total_rats
 
         # read in colony data, predictions, and exclusion list
         colony_df = pd.read_csv(args.colony_dataframe[0], 
@@ -159,61 +211,155 @@ class Request:
         self.rats_metadata = rats_metadata.sort_values(by = self.trait, 
             axis = 0, ascending = False)\
                 .dropna(subset = self.trait, ignore_index=True)
-        # print(f'{ len(self.rats_metadata)} rats are available for selection')
+
+        # add a column of high/low group assignments
+        self.rats_metadata[f'{self.trait}_2group'] = \
+            self.trait_groups(self.trait, n_groups=2)
+
+        # list of rats available for assignment, ordered by trait prediction
+        self.available_rfids = rats_metadata['rfid'].tolist()
         
-        # list of trait predictions from which to pull rats
-        self.available_rfids = self.rats_metadata['rfid'].tolist()
-        
-        self.available_trait_vals = dict(zip(self.rats_metadata['rfid'], 
-                                             self.rats_metadata[self.trait]))
-        self.available_sex_vals = dict(zip(self.rats_metadata['rfid'], 
-                                             self.rats_metadata['sex']))
+        # convert df to dictionary with key:RFID and value:(sex, prediction)
+        rat_data = rats_metadata.\
+            set_index('rfid')[['sex', self.trait]].to_dict(orient='index')
+
+        # convert the nested dictionaries to tuples
+        self.available_rats = \
+            {k: (v['sex'], v[self.trait]) for k, v in rat_data.items()}
 
     # function to propose an assignment of RFIDs to a project
-    def proposal(self, unavailable_rfids):
+    #### agnostic to sex, for now
+    #### TO DO: keep track of sex: do min/max by sex
+    def proposal(self, proposed_rfids):
         
         # initial indexes to start search for extreme available rats
         i = 0    # first element is the rat with the max trait value
         j = len(self.available_rfids) - 1 # last element has the min trait value
 
         # select the most extreme high & low available rats
-        while self.available_rfids[i] in unavailable_rfids:
+        while self.available_rfids[i] in proposed_rfids:
             i += 1
-        while self.available_rfids[j] in unavailable_rfids:
+        while self.available_rfids[j] in proposed_rfids:
             j -= 1
         max_rat = self.available_rfids[i]
         min_rat = self.available_rfids[j]
 
         # calculate delta for this iteration: the difference in trait values
-        delta_iter = self.available_trait_vals[max_rat] - \
-            self.available_trait_vals[min_rat]
-
-        # calculate the proposed total delta: the sum of all iterations' deltas,
-        # if this proposed iteration were to be added
-        proposed_delta = delta_iter + self.delta
+        #### TO DO: calculate sex-specific deltas
+        min_rat_sex, min_rat_pred = self.available_rats[min_rat]
+        max_rat_sex, max_rat_pred = self.available_rats[max_rat]
+        print(f'proposal: min_rat: {min_rat}, min_rat_pred: {min_rat_pred}')
+        print(f'proposal: max_rat: {max_rat}, min_rat_pred: {max_rat_pred}')
+        delta_iter = max_rat_pred - min_rat_pred
+        print(f'proposal: delta_iter: {delta_iter}')
+        # calculate the proposed total delta: the sum of all iterations' 
+        # deltas if this proposed iteration were to be added
+        proposed_delta = self.delta + delta_iter
 
         # return proposed delta, selected rats
-        return (proposed_delta, [max_rat, min_rat])
+        return (proposed_delta, [min_rat, max_rat])
 
     # function to remove assigned rats from the list of available rats
     def remove(self, rfids_to_remove):
         
         for rfid in rfids_to_remove:
-            self.available_rfids.remove(rfid)
-            del self.available_trait_vals[rfid]
-            del self.available_sex_vals[rfid]
+            
+            if rfid in self.available_rats:
+                self.available_rfids.remove(rfid)
+                del self.available_rats[rfid]
+                self.n_assignments_remaining -= 1
 
-    def update(self, rfids_to_assign): # rfids_to_assign = best_rfids
-        raise NotImplementedError    
+    # function to assign rats to a project, remove them from availability
+    #### agnostic to sex, for now
+    #### TO DO: keep track of sex: assign to sex-specific high/low groups
+    def assign(self, rfids_to_assign): # rfids_to_assign = best_rfids
 
+        while self.is_satisfied == False:
+            # add the rfids with max and min trait values 
+            # to high and low groups, respectively
+            min_rat = rfids_to_assign[0]
+            max_rat = rfids_to_assign[1]
+            
+            # get the delta betwen assigned rats
+            min_rat_sex, min_rat_pred = self.available_rats[min_rat]
+            max_rat_sex, max_rat_pred = self.available_rats[max_rat]
+            assignment_delta = max_rat_pred - min_rat_pred
+
+            #### temp for now - remove once sex-specific assignment is adopted
+            self.assigned_low[min_rat] = self.available_rats[min_rat]
+            self.assigned_high[max_rat] = self.available_rats[max_rat]
+
+            #### unused for now - use this once sex-specific assignment is adopted
+            if min_rat_sex == 'M':
+                self.assigned_males_low[min_rat] = self.available_rats[min_rat]
+            else:
+                self.assigned_females_low[min_rat] = self.available_rats[min_rat]
+            if max_rat_sex == 'M':
+                self.assigned_males_high[max_rat] = self.available_rats[max_rat]
+            else:
+                self.assigned_females_high[max_rat] = self.available_rats[max_rat]
+
+            # update the overall delta for the request: add the assignment delta
+            self.delta += assignment_delta
+
+            # remove assigned rats from further availability
+            self.remove(rfids_to_assign)
+
+    # function to check if the request has been fulfilled
     def is_satisfied(self):
-        raise NotImplementedError
+        
+        #### temporary until adopting sex-specific assignment
+        return (
+            self.n_assigned_high == self.n_requested_high and 
+            self.n_assigned_low == self.n_requested_low
+        )
+        #### unused for now - use this once sex-specific assignment is adopted
+        # return (
+        #     self.n_assigned_males_high == self.n_requested_males_high and 
+        #     self.n_assigned_males_low == self.n_requested_males_low and
+        #     self.n_assigned_females_high == self.n_requested_females_high and
+        #     self.n_assigned_females_low == self.n_requested_females_low
+        # )
 
-    @property
-    def delta(self):
-        # raise NotImplementedError
-        # return self.high - self.low
-        return 0
+    # function to assign high/low group values
+    def trait_groups(self, trait, n_groups=2):
+
+        df = self.rats_metadata
+        preds = df[trait].tolist()
+        trait_quantiles = np.quantile(a = preds, 
+                                      q = np.linspace(0,1, n_groups+1))
+        if n_groups == 2:
+            def get_2group(val, quantiles):
+                if val >= quantiles[1]:
+                    return 'high'
+                else:
+                    return 'low'
+            groups = [get_2group(pred, trait_quantiles) for pred in preds]
+        
+        if n_groups == 3:
+            def get_3group(val, quantiles):
+                if val < quantiles[1]:
+                    return 'low'
+                elif val >= quantiles[2]:
+                    return 'high'
+                else:
+                    return 'mid'
+            groups = [get_3group(pred, trait_quantiles) for pred in preds]
+        
+        if n_groups > 3:
+            groups = np.digitize(preds, trait_quantiles)
+            
+        return groups
+
+    # @property
+    # def delta(self):
+    #     # raise NotImplementedError
+    #     # return self.high - self.low
+    #     return self._delta
+    
+    # @delta.setter
+    # def delta(self, value):
+    #     self._delta = value
 
 
 ### execute ###
