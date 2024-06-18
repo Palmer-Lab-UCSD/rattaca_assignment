@@ -217,29 +217,40 @@ class Request:
             self.trait_groups(self.trait, n_groups=2)
 
         # list of rats available for assignment, ordered by trait prediction
-        self.available_rfids = rats_metadata['rfid'].tolist()
+        self.available_rfids = self.rats_metadata['rfid'].tolist()
         
         # convert df to dictionary with key:RFID and value:(sex, prediction)
-        rat_data = rats_metadata.\
+        self.rat_data = self.rats_metadata.\
             set_index('rfid')[['sex', self.trait]].to_dict(orient='index')
 
         # convert the nested dictionaries to tuples
         self.available_rats = \
-            {k: (v['sex'], v[self.trait]) for k, v in rat_data.items()}
+            {k: (v['sex'], v[self.trait]) for k, v in self.rat_data.items()}
 
     # function to propose an assignment of RFIDs to a project
     #### agnostic to sex, for now
     #### TO DO: keep track of sex: do min/max by sex
-    def proposal(self, proposed_rfids):
+    # unavail_rats = either empty, or a list of RFIDs,
+    # or a dict of (sex, pred) w/ RFIDs as keys
+    def proposal(self, unavail_rats = None):
+        
+        if unavail_rats is None:
+            unavail_rfids = []
+        elif isinstance(unavail_rats, list):
+            unavail_rfids = unavail_rats
+        elif isinstance(unavail_rats, dict):
+            unavail_rfids = list(unavail_rats.keys())
+        else:
+            raise TypeError("unavail_rats must be either None, a list, or a dictionary")
         
         # initial indexes to start search for extreme available rats
         i = 0    # first element is the rat with the max trait value
         j = len(self.available_rfids) - 1 # last element has the min trait value
 
         # select the most extreme high & low available rats
-        while self.available_rfids[i] in proposed_rfids:
+        while self.available_rfids[i] in unavail_rfids:
             i += 1
-        while self.available_rfids[j] in proposed_rfids:
+        while self.available_rfids[j] in unavail_rfids:
             j -= 1
         max_rat = self.available_rfids[i]
         min_rat = self.available_rfids[j]
@@ -248,8 +259,8 @@ class Request:
         #### TO DO: calculate sex-specific deltas
         min_rat_sex, min_rat_pred = self.available_rats[min_rat]
         max_rat_sex, max_rat_pred = self.available_rats[max_rat]
-        print(f'proposal: min_rat: {min_rat}, min_rat_pred: {min_rat_pred}')
-        print(f'proposal: max_rat: {max_rat}, min_rat_pred: {max_rat_pred}')
+        print(f'proposal: min_rat: {min_rat}, pred: {min_rat_pred}')
+        print(f'proposal: max_rat: {max_rat}, pred: {max_rat_pred}')
         delta_iter = max_rat_pred - min_rat_pred
         print(f'proposal: delta_iter: {delta_iter}')
         # calculate the proposed total delta: the sum of all iterations' 
