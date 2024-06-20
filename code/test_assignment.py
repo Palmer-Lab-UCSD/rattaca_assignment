@@ -116,25 +116,21 @@ class TestRequest(unittest.TestCase):
     # test that data are sorted by the requested trait
     def test_sorted_trait(self):
 
-        self.assertEqual(
-            self.request1.rats_metadata[self.request1.trait].iloc[0],
-            max(self.request1.rats_metadata[self.request1.trait]))
-        self.assertEqual(
-            self.request1.rats_metadata[self.request1.trait].iloc[-1],
-            min(self.request1.rats_metadata[self.request1.trait]))
-        self.assertEqual(
-            self.request2.rats_metadata[self.request2.trait].iloc[0],
-            max(self.request2.rats_metadata[self.request2.trait]))
-        self.assertEqual(
-            self.request2.rats_metadata[self.request2.trait].iloc[-1],
-            min(self.request2.rats_metadata[self.request2.trait]))
-        self.assertEqual(
-            self.request3.rats_metadata[self.request3.trait].iloc[0],
-            max(self.request3.rats_metadata[self.request3.trait]))
-        self.assertEqual(
-            self.request3.rats_metadata[self.request3.trait].iloc[-1],
-            min(self.request3.rats_metadata[self.request3.trait]))
+        full_req_list = [self.request1, self.request2, self.request3]
+        excl_req_list = [self.excl_req1, self.excl_req2, self.excl_req3]
+        all_requests = full_req_list + excl_req_list
+        
+        for req in all_requests:
+            self.assertEqual(
+                req.rats_metadata[req.trait].iloc[0],
+                max(req.rats_metadata[req.trait]))
+            self.assertEqual(
+                req.rats_metadata[req.trait].iloc[-1],
+                min(req.rats_metadata[req.trait]))
 
+    # # test that available rats are broken by sex and maintained in order of prediction
+    # def test_sex_order(self):
+    #     pass
 
     # test that proposal() returns the most extreme possible rats
     def test_proposal(self):
@@ -294,7 +290,7 @@ class TestRequest(unittest.TestCase):
             self.assertNotIn(min_rat, req.available_rfids)
             self.assertNotIn(random_rat, req.available_rfids)
 
-    # def test_update(self):
+    # def test_assign(self):
     #     with self.assertRaises(NotImplementedError):
     #         self.request1.update()
 
