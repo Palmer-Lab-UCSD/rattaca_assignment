@@ -73,67 +73,99 @@ def main(args):
     # 3. random assignment - no predictions needed
     all_requests = hsw_breeder_requests + rattaca_requests + random_requests
 
-    # initialize variables to store stats from the eventual best permutation
-    best_delta = 0
-    best_permutation = None
-    best_rfids = None
-
     # permute the assignment order to all requests
-    n_requests = len(all_requests)
-    for permuted_order in permutations(range(n_requests)):
-        print(f'permuted_order: {permuted_order}')
-        proposed_rfids = {}
-        permutation_delta = 0
-        project_deltas = []
+    ar = 0
+    while any(not request.is_satisfied() for request in all_requests):
 
-        # for each project request in the current permutation... 
-        for current_project in permuted_order:
-            print(f'current_project: {current_project}')
-            # ...propose animals for assignment to the project 
-            # and add the project's delta to the total delta for the permutation
-            project_delta, proposal_rfids = all_requests[current_project]\
-                .proposal(proposed_rfids) 
-            permutation_delta += project_delta
-            project_deltas.append(project_delta)
-            proposed_rfids[current_project] = proposal_rfids
-            print(f'proposal_rfids: {proposal_rfids}')
-            print(f'permutation_delta: {permutation_delta}')
-            print(f'project_deltas: {project_deltas}')
-        # keep the proposed rfids for assignment from the permutation 
-        # that maximizes delta
-        if permutation_delta >= best_delta:
-            best_delta = permutation_delta
-            best_permutation = permuted_order
-            best_rfids = proposed_rfids
-        print(f'current best_permutation: {best_permutation}')
-    print(f'final best_permutation: {best_permutation}')
-    print(f'best_rfids: {best_rfids}')
-    print(f'best_delta: {best_delta}')
-    # assign rats to each request in the permuted order that maximizes delta
-    for project_index in best_permutation:
-        print(project_index)
-        request = all_requests[project_index]
-
-        assign_rfids = best_rfids[project_index]
-        remove_rfids = [item for sublist in \
-                        [v for k,v in best_rfids.items() if k != project_index] \
-                            for item in sublist]
-        print(assign_rfids)
-        print(remove_rfids)
-
-        request.assign(assign_rfids)
-        request.remove(remove_rfids)
+        open_requests = \
+            [request for request in all_requests if not request.is_satisfied()]
+        n_open_requests = len(open_requests)
         
+        # initialize variables to store stats from the eventual best permutation
+        best_delta = 0
+        best_permutation = None
+        best_rfids = None
 
-    # for i, request in enumerate(all_requests):
-    #     print(f'request: {request.project}')
-    #     for project_index in best_permutation:
-    #         if i == project_index:
-    #             request.assign(best_rfids[i])
-    #             print(f'assign: {best_rfids}')
-    #         else:
-    #             request.remove(best_rfids[i])
-    #             print(f'remove: {best_rfids}')
+        ar += 1
+        print(f'ASSIGNMENT ROUND {ar}')
+        for permuted_order in permutations(range(n_open_requests)):
+            # print(f'permuted_order: {permuted_order}')
+            proposed_rfids = {}
+            permutation_delta = 0
+            project_deltas = []
+            # print(f'start permutation_delta: {best_delta}')
+            # print(f'start best_delta: {best_delta}')
+
+            # for each project request in the current permutation... 
+            for current_request_idx in permuted_order:
+
+                current_request = open_requests[current_request_idx]
+                print(f'current project: {current_request.project}')
+                print(f'{'933000320978347' in current_request.available_rfids}')
+
+                # print(f'current_request: {current_request.project}')
+                # print(f'{current_request.available_rats}')
+                # print(f'proposed_rfids: {proposed_rfids}')
+                # ...propose animals for assignment to the project 
+                # and add the project's delta to the total delta for the permutation
+                project_delta, proposal_rfids = current_request\
+                    .proposal(proposed_rfids) 
+                permutation_delta += project_delta
+                project_deltas.append(project_delta)
+                proposed_rfids[current_request_idx] = proposal_rfids
+                # print(f'proposal_rfids: {proposal_rfids}')
+                # print(f'project_deltas: {project_deltas}')
+                # print(f'permutation_delta: {permutation_delta}')
+                # print(f'best_delta: {best_delta}')
+
+            # keep the proposed rfids for assignment from the permutation 
+            # that maximizes delta
+            # print('all projects permuted')
+            # print(f'permutation_delta: {permutation_delta}')
+            # print(f'best_delta: {best_delta}')
+            if permutation_delta > best_delta:
+                best_delta = permutation_delta
+                best_permutation = permuted_order
+                best_rfids = proposed_rfids
+
+        # print(f'final best_permutation: {best_permutation}')
+        # print(f'best_rfids: {best_rfids}')
+
+        # assign rats to each request in the permuted order that maximizes delta
+        for project_index in best_permutation:
+
+            assign_to_project = open_requests[project_index]
+            # print(f'assign_to_request: {assign_to_request.project}')
+
+            assign_rfids = best_rfids[project_index]
+            remove_rfids = [rfid for remaining_rfids in \
+                            [val_rfid for key_idx, val_rfid in \
+                             best_rfids.items() if key_idx != project_index] \
+                                for rfid in remaining_rfids]
+            print(f'assign_rfids: {assign_rfids}')
+            # print(f'remove_rfids: {remove_rfids}')
+
+            if not assign_to_project.is_satisfied():
+                assign_to_project.assign(assign_rfids)
+                # print(f'{assign_to_project.project}.n_assigned: {assign_to_project.n_assigned}')
+                # print(f'MH: {assign_to_project.assigned_males_high}')
+                # print(f'ML: {assign_to_project.assigned_males_low}')
+                # print(f'FH: {assign_to_project.assigned_females_high}')
+                # print(f'FL: {assign_to_project.assigned_females_low}')
+
+            print(f'current project: {assign_to_project.project}')
+            print(f'{'933000320978347}' in assign_to_project.available_rfids}')
+        if ar == 3:
+            break
+        # for i, request in enumerate(all_requests):
+        #     print(f'request: {request.project}')
+        #     for project_index in best_permutation:
+        #         if i == project_index:
+        #             request.assign(best_rfids[i])
+        #             print(f'assign: {best_rfids}')
+        #         else:
+        #             request.remove(best_rfids[i])
+        #             print(f'remove: {best_rfids}')
 
 
 ### classes ###
@@ -227,7 +259,7 @@ class Request:
 
         # create a list of rats available for assignment, ordered by trait prediction
         self.available_rfids = self.trait_metadata['rfid'].tolist()
-    
+
     # function to propose an assignment of RFIDs to a project
     #### agnostic to sex, for now
     #### TO DO: keep track of sex: do min/max by sex
@@ -300,7 +332,7 @@ class Request:
 
     # function to assign rats to RATTACA projects based on their genetic predictions
     def assign_rattaca(self, rfids_to_assign): # rats_to_assign = best_rfids
-        
+        # print(f'rfids_to_assign: {rfids_to_assign}')
         if (isinstance(rfids_to_assign, list)) & \
             (len(rfids_to_assign) == 2) & \
                 (self.available_rats[rfids_to_assign[1]][1] > \
@@ -317,7 +349,7 @@ class Request:
             if rfid in self.available_rfids:
                 rats_to_assign[rfid] = self.available_rats[rfid]
             else:
-                raise ValueError(f'''RFID {rfid} is not available for assignment, 
+                raise ValueError(f'''RFID {rfid} is not available for assignment, \
                                  was NOT assigned''')
 
         min_rat = rfids_to_assign[0]
@@ -332,16 +364,17 @@ class Request:
         elif max_rat_sex == 'F':
             assign_to = self.assigned_females_high
             n_requested = self.n_requested_females_high
+        
         # if the request is not yet satisfied
         # assign the high rat and remove it from availability
-        if not self.is_satisfied_rattaca(max_rat_sex, max_rat_group):
-            assign_to[max_rat] = rats_to_assign[max_rat]
-            self.remove([max_rat])
-        else:
+        if self.is_satisfied_rattaca(max_rat_sex, max_rat_group):
             message = (f'RFID {max_rat} could not be assigned: '
                        f'All {max_rat_sex}/{max_rat_group} group '
                        'assignments already satisfied')
             print(message)
+        else:
+            assign_to[max_rat] = rats_to_assign[max_rat]
+            self.remove([max_rat])
                 
         # set up assignment for the low rat and remove it from availability
         if min_rat_sex == 'M':
@@ -367,6 +400,33 @@ class Request:
             max_rat_pred = rats_to_assign[max_rat][1]
             assignment_delta = max_rat_pred - min_rat_pred
             self.delta += assignment_delta
+
+        # automatically update list of available rats once a given subsample
+        # for a request has been satisfied
+        if self.is_satisfied('M','high'):
+            drop_df = self.trait_metadata
+            drop_rfids = drop_df[(drop_df['sex']=='M') & \
+                        (drop_df[f'{self.trait}_2group']=='high')]['rfid'].tolist()
+            self.available_rfids = [rfid for rfid in self.available_rfids \
+                                    if rfid not in drop_rfids]
+        if self.is_satisfied('M','low'):
+            drop_df = self.trait_metadata
+            drop_rfids = drop_df[(drop_df['sex']=='M') & \
+                        (drop_df[f'{self.trait}_2group']=='low')]['rfid'].tolist()
+            self.available_rfids = [rfid for rfid in self.available_rfids \
+                                    if rfid not in drop_rfids]
+        if self.is_satisfied('F','high'):
+            drop_df = self.trait_metadata
+            drop_rfids = drop_df[(drop_df['sex']=='F') & \
+                        (drop_df[f'{self.trait}_2group']=='high')]['rfid'].tolist()
+            self.available_rfids = [rfid for rfid in self.available_rfids \
+                                    if rfid not in drop_rfids]
+        if self.is_satisfied('F','low'):
+            drop_df = self.trait_metadata
+            drop_rfids = drop_df[(drop_df['sex']=='F') & \
+                        (drop_df[f'{self.trait}_2group']=='low')]['rfid'].tolist()
+            self.available_rfids = [rfid for rfid in self.available_rfids \
+                                    if rfid not in drop_rfids]
 
 
     # function to manually assign rats to any projects as needed
@@ -412,7 +472,7 @@ class Request:
 
 
     # generic function to check if the request has been fulfilled
-    def is_satisfied(self, sex, group):
+    def is_satisfied(self, sex=None, group=None):
         
         if self.assignment_type == 'rattaca':
             return self.is_satisfied_rattaca(sex, group)
@@ -427,8 +487,18 @@ class Request:
             
     # function to check if a prediction-based RATTACA project has 
     # successfully assigned all requested rats
-    def is_satisfied_rattaca(self, sex, group):
+    def is_satisfied_rattaca(self, sex=None, group=None):
 
+        if (sex is None) & (group is None):
+            n_remaining = self.n_remaining['n_remaining_total']
+        if (sex == 'M') & (group is None):
+            n_remaining = self.n_remaining['n_remaining_males']
+        elif (sex == 'F') & (group is None):
+            n_remaining = self.n_remaining['n_remaining_females']
+        if (group == 'high') & (sex is None):
+            n_remaining = self.n_remaining['n_remaining_high']
+        if (group == 'low') & (sex is None):
+            n_remaining = self.n_remaining['n_remaining_low']
         if (sex == 'M') & (group == 'high'):
             n_remaining = self.n_remaining['n_remaining_males_high']
         elif (sex == 'M') & (group == 'low'):
