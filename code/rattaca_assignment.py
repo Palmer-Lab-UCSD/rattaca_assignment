@@ -134,29 +134,36 @@ def main(args):
         # assign rats to each request in the permuted order that maximizes delta
         for project_index in best_permutation:
 
-            assign_to_project = open_requests[project_index]
+            project_to_assign = open_requests[project_index]
+            other_projects = [proj for i, proj in enumerate(open_requests) \
+                              if i != project_index]
+            
+
             # print(f'assign_to_request: {assign_to_request.project}')
 
             assign_rfids = best_rfids[project_index]
             remove_rfids = [rfid for remaining_rfids in \
-                            [val_rfid for key_idx, val_rfid in \
-                             best_rfids.items() if key_idx != project_index] \
+                            [rfid_val for idx_key, rfid_val in \
+                             best_rfids.items() if idx_key != project_index] \
                                 for rfid in remaining_rfids]
             print(f'assign_rfids: {assign_rfids}')
-            # print(f'remove_rfids: {remove_rfids}')
+            print(f'remove_rfids: {remove_rfids}')
 
-            if not assign_to_project.is_satisfied():
-                assign_to_project.assign(assign_rfids)
+            if not project_to_assign.is_satisfied():
+                project_to_assign.assign(assign_rfids)
+                for rm_from_project in other_projects:
+                    rm_from_project.remove(assign_rfids)
+                # assign_to_project.remove(remove_rfids)
                 # print(f'{assign_to_project.project}.n_assigned: {assign_to_project.n_assigned}')
                 # print(f'MH: {assign_to_project.assigned_males_high}')
                 # print(f'ML: {assign_to_project.assigned_males_low}')
                 # print(f'FH: {assign_to_project.assigned_females_high}')
                 # print(f'FL: {assign_to_project.assigned_females_low}')
 
-            print(f'current project: {assign_to_project.project}')
-            print(f'{'933000320978347}' in assign_to_project.available_rfids}')
-        if ar == 3:
-            break
+        #     print(f'current project: {assign_to_project.project}')
+        #     print(f'{'933000320978347}' in assign_to_project.available_rfids}')
+        # if ar == 3:
+        #     break
         # for i, request in enumerate(all_requests):
         #     print(f'request: {request.project}')
         #     for project_index in best_permutation:
