@@ -4,9 +4,15 @@
     "assignment_type" : "random",
     "n_rats": {
         "total" : 96,
-        "male" : 48,
-        "female" : 48
+        "male" : {
+            "total" : 48,
+            "high" : 0,
+            "low" : 0
+        },
+        "female" : {
+            "total" : 48,
+            "high" : 0,
+            "low" : 0                           
+        }
     }
 }
-
-
