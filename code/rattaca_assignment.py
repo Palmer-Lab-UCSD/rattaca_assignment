@@ -36,7 +36,7 @@ def parse_args(args):
         required=True, type=str, nargs=1, 
         dest="colony_dataframe", help="<HS West colony dataframe csv>")
     parser.add_argument('-p', '--predictions', 
-        required=True, type=str, nargs=1, 
+        required=False, type=str, nargs=1, 
         dest="predictions", help="<rattaca predictions csv")
     parser.add_argument('-r', '--request_files', 
         required=True, type=str, 
@@ -47,7 +47,110 @@ def parse_args(args):
 
     return parser.parse_args(args)
 
+# function to clean up and format the colony dataframe
+def prep_colony_df(args):
+    '''Drops unusable samples from the colony dataframe.
+    
+    Drops all dead rats, rats with undetermined sex, and rats
+    lacking RFIDs from consideration for assignment. Adds one column
+    denoting which rats have been genotyped (for use in assigning to 
+    random-choice projects).
 
+    Args:
+        args.colony_dataframe: The path to the colony dataframe (csv)
+        args.predictions: The path to the predictions csv.
+
+    Returns:
+        A pandas dataframe with colony data for all rats available 
+        for assignment, with an added columns denoting which samples 
+        have been genotyped
+    '''
+
+    df = pd.read_csv(args.colony_dataframe[0], 
+                                dtype = {'rfid': str, 'accessid': int})
+    
+    if args.predictions is None:
+        gtyped_rfids = []
+    else:
+        preds_df = pd.read_csv(args.predictions[0], dtype = {'rfid': str})
+        gtyped_rfids = preds_df['rfid'].tolist()
+
+    # drop rats without RFIDs
+    df[~df['rfid'].isnull()]
+    
+    # identify dead rats
+    dead_strs = ['dead', 'die', 'death', 'euth', 'eauth', 'kill']
+    dead_search = '|'.join(dead_strs)
+    dead_rats = df[df['comments']\
+        .str.contains(dead_search, case=False, na=False)]['rfid'].tolist()
+    
+    # identify rats with unknown sex
+    ambig_sex = df[df['comments']\
+        .str.contains('unsure sex', case=False, na=False)]['rfid'].tolist()
+    
+    # drop dead rats, rats w/ unknown sex
+    drop_rats = dead_rats + ambig_sex
+    df = df[~df['rfid'].isin(drop_rats)]
+    
+    # identify rats that have been genotyped
+    df['gtyped'] = df['rfid'].isin(gtyped_rfids).astype(int)
+
+    return(df)
+
+
+# function to assign breeders a priori
+def prioritize_breeders(args):
+    '''Assigns singleton offspring to HSW breeders by priority 
+    prior to project assignments.
+    
+    Identifies all rats that are the only M or F from their litter,
+    assigns them automatically to HSW breeders to ensure all breeder
+    pairs have one M and one F represented in the next HSW generation.
+
+    Args:
+        args.colony_dataframe: The path to the colony dataframe (csv).
+        args.predictions: The path to the predictions csv.
+    
+    Returns:
+        A list of RFIDs that must be assigned to HSW breeders.
+    '''
+    
+    df = prep_colony_df(args)
+    m_breeders = []
+    f_breeders = []
+
+    for pair in df['breederpair'].unique():
+
+        litter_males = \
+            df[(df['breederpair'] == pair) & (df['sex'] == 'M')]['rfid']
+        litter_females = \
+            df[(df['breederpair'] == pair) & (df['sex'] == 'F')]['rfid']
+        
+        # any rat that is the single M or F from its litter 
+        # is automatically assigned to HS West breeders
+        if len(litter_males) == 1:
+            assign_male = litter_males
+            breeders.append(assign_male)
+            m_breeders.append(assign_male)
+        
+        if len(litter_females) == 1:
+            assign_female = litter_females
+            breeders.append(assign_female)
+            f_breeders.append(assign_female)
+        
+    breeders = m_breeders + f_breeders
+    return(breeders)
+
+# function to format results from all assignments to the database
+def output_df_for_db(request_list):
+    '''Extracts assignment data from multiple Request variables into a 
+    dataframe formatted to upload to the Palmer Lab database.
+    '''
+    
+    pass
+
+
+# primary assignment algorithm
 def main(args):
     
     # empty lists to hold different request types
@@ -164,15 +267,6 @@ def main(args):
         #     print(f'{'933000320978347}' in assign_to_project.available_rfids}')
         # if ar == 3:
         #     break
-        # for i, request in enumerate(all_requests):
-        #     print(f'request: {request.project}')
-        #     for project_index in best_permutation:
-        #         if i == project_index:
-        #             request.assign(best_rfids[i])
-        #             print(f'assign: {best_rfids}')
-        #         else:
-        #             request.remove(best_rfids[i])
-        #             print(f'remove: {best_rfids}')
 
 
 ### classes ###
@@ -654,15 +748,18 @@ class Request:
         
         return out
 
-    # @property
-    # def delta(self):
-    #     # raise NotImplementedError
-    #     # return self.high - self.low
-    #     return self._delta
-    
-    # @delta.setter
-    # def delta(self, value):
-    #     self._delta = value
+### TO DO: flesh out sub-classes ##
+# Request subclass for HS West breeders
+class HSWBreeders(Request):
+    pass
+
+# Request subclass for RATTACA projects
+class RATTACA(Request):
+    pass
+
+# Request subclass for randomly-assigned projects
+class RandProj(Request, sibs_per_litter=None):
+    pass
 
 
 ### execute ###
