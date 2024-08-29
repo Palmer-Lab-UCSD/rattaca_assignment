@@ -76,12 +76,6 @@ def prep_colony_df(args):
     else:
         gtyped_rfids = []
 
-    if args.exclude:
-        exclude_rfids = pd.read_csv(args.exclude[0], header = None)\
-            .astype(str)[0].values
-    else:
-        exclude_rfids = []
-
     # check for duplicate RFIDs
     if sum(df.duplicated(subset = ['rfid'])) > 0:
         print('Error: Colony metadata has duplicate RFIDs')
@@ -108,10 +102,7 @@ def prep_colony_df(args):
     # drop dead rats, rats w/ unknown sex
     drop_rats = dead_rats + ambig_sex
     df = df[~df['rfid'].isin(drop_rats)]
-    
-    # drop rats from the exclude list
-    df = df[~df['rfid'].isin(exclude_rfids)]
-
+    print(f'df shape: {df.shape}')
     # identify rats that have been genotyped
     df['gtyped'] = df['rfid'].isin(gtyped_rfids).astype(int)
 
@@ -273,7 +264,9 @@ def main(args):
 class Request:
     
     def __init__(self, request_file, args):
-        
+
+        print('Initializing Request') # debug message - can delete later
+
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
 
@@ -281,69 +274,17 @@ class Request:
             self.assignment_type = req_metadat['assignment_type']
             self.project = req_metadat['project']
             self.trait = req_metadat['trait']
+            print(f'Project: {self.project}, trait: {self.trait}') # debug message - delete later
             self.n_requested_total = req_metadat['n_rats']['total']
             self.n_requested_males = req_metadat['n_rats']['male']['total']
             self.n_requested_females = req_metadat['n_rats']['female']['total']
-            # self.n_requested_males_high = req_metadat['n_rats']['male']['high']
-            # self.n_requested_males_low = req_metadat['n_rats']['male']['low']
-            # self.n_requested_females_high = \
-            #     req_metadat['n_rats']['female']['high']
-            # self.n_requested_females_low = \
-            #     req_metadat['n_rats']['female']['low']
-            # self.n_requested_high = \
-            #     self.n_requested_males_high + self.n_requested_females_high
-            # self.n_requested_low = \
-            #     self.n_requested_males_low + self.n_requested_females_low
-
-        # initialize dictionaries to hold assigned rats
-        # self.assigned_males_high = {}
-        # self.assigned_males_low = {}
-        # self.assigned_females_high = {}
-        # self.assigned_females_low = {}
                 
-        # # initialize the delta for the request
-        # self.delta = 0
+        # read in colony data 
+        self.colony_df = prep_colony_df(args)
+        print(f'colony_df shape: {self.colony_df.shape}') # debug - delete
 
-        # read in colony data and predictions
-        self.setup_trait_metadata(args)
-
-
-    # function to set up trait metadata for a project request
-    def setup_trait_metadata(self, args):
-
-        # read in colony dataframe and predictions
-        colony_df = prep_colony_df(args)
-        predictions_df = pd.read_csv(args.predictions[0], dtype = {'rfid': str})
-        
-        # merge predictions with colony metadata
-        all_metadata = colony_df.merge(predictions_df[['rfid', self.trait]], \
-                                       on='rfid', how='right')
-
-        # sort by the requested trait, remove NAs
-        self.trait_metadata = all_metadata.sort_values(by = self.trait, 
-            axis=0, ascending=False)\
-                .dropna(subset=self.trait, ignore_index=True)
-        
-        # add a column of high/low group assignments
-        self.trait_metadata[f'{self.trait}_2group'] = \
-            self.trait_groups(self.trait, n_groups=2)
-
-        # drop any groups that aren't requested
-        if self.n_requested_males == 0:
-            self.trait_metadata = self.trait_metadata\
-                [self.trait_metadata['sex'] != 'M']
-        if self.n_requested_females == 0:
-            self.trait_metadata = self.trait_metadata\
-                [self.trait_metadata['sex'] != 'F']
-        if self.n_requested_high == 0:
-            self.trait_metadata = self.trait_metadata\
-                [self.trait_metadata[f'{self.trait}_2group'] != 'high']
-        if self.n_requested_low == 0:
-            self.trait_metadata = self.trait_metadata\
-                [self.trait_metadata[f'{self.trait}_2group'] != 'low']
-
-        # create a list of rats available for assignment, ordered by trait prediction
-        self.available_rfids = self.trait_metadata['rfid'].tolist()
+        print('Finished initializing Request') # debug message - can delete later
+        print(self.__dict__.keys()) # debug message - delete later
 
     # function to remove assigned rats from the list of available rats
     def remove(self, rats_to_remove):
@@ -374,47 +315,6 @@ class Request:
                             "hsw_breeders", or "random". Please check the .json \
                             file for this project request')
 
-    # function to manually assign rats to any projects as needed
-    def assign_manual(self, rfids_to_assign): # rats_to_assign = best_rfids
-
-        if isinstance(rfids_to_assign, list):
-            pass
-        else:
-            raise TypeError('rfids_to_assign must be a list')
-        
-        rats_to_assign = {}
-        # ensure rats designated for assignment are actually available,
-        # get relevant metadata for available RFIDS
-        for rfid in rfids_to_assign:
-            if rfid not in self.available_rfids:
-                raise ValueError(f'''RFID {rfid} is not available for assignment, 
-                                 was NOT assigned''')
-            else:
-                rats_to_assign[rfid] = self.available_rats[rfid]        
-            rat_sex =  rats_to_assign[rfid][0]
-            rat_group =  rats_to_assign[rfid][2]
-
-            if (rat_sex == 'M') & (rat_group == 'high'):
-                assign_to = self.assigned_males_high
-                n_requested = self.n_requested_males_high
-            elif (rat_sex == 'M') & (rat_group == 'low'):
-                assign_to = self.assigned_males_low
-                n_requested = self.n_requested_males_low
-            elif (rat_sex == 'F') & (rat_group == 'high'):
-                assign_to = self.assigned_females_high
-                n_requested = self.n_requested_females_high
-            elif (rat_sex == 'F') & (rat_group == 'low'):
-                assign_to = self.assigned_females_low
-                n_requested = self.n_requested_females_low
-
-            if not self.is_satisfied(rat_sex, rat_group):
-                assign_to[rfid] = rats_to_assign[rfid]
-                self.remove([rfid])
-            else:
-                print(f'''RFID {rfid} could not be assigned. All \
-                      {n_requested} {assign_to} assignments are \
-                        already satisfied''')
-
 
     # generic function to check if the request has been fulfilled
     def is_satisfied(self, sex=None, group=None):
@@ -430,36 +330,6 @@ class Request:
                             "hsw_breeders", or "random". Please check the .json 
                             file for this project request''')
             
-
-    # function to assign high/low group values
-    def trait_groups(self, trait, n_groups=2):
-
-        df = self.trait_metadata
-        preds = df[trait].tolist()
-        trait_quantiles = np.quantile(a = preds, 
-                                      q = np.linspace(0,1, n_groups+1))
-        if n_groups == 2:
-            def get_2group(val, quantiles):
-                if val >= quantiles[1]:
-                    return 'high'
-                else:
-                    return 'low'
-            groups = [get_2group(pred, trait_quantiles) for pred in preds]
-        
-        if n_groups == 3:
-            def get_3group(val, quantiles):
-                if val < quantiles[1]:
-                    return 'low'
-                elif val >= quantiles[2]:
-                    return 'high'
-                else:
-                    return 'mid'
-            groups = [get_3group(pred, trait_quantiles) for pred in preds]
-        
-        if n_groups > 3:
-            groups = np.digitize(preds, trait_quantiles)
-            
-        return groups
 
     # property to keep track of all rats currently available for assignment
     @property
@@ -575,16 +445,15 @@ class RATTACA(Request):
     
     def __init__(self, request_file, args):
         
+        print('Initializing RATTACA request') # debug message - delete later
+
+        # inherit attributes from the parent Request class
+        super().__init__(request_file, args)
+        
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
 
             req_metadat = json.load(rf)
-            self.assignment_type = req_metadat['assignment_type']
-            self.project = req_metadat['project']
-            self.trait = req_metadat['trait']
-            self.n_requested_total = req_metadat['n_rats']['total']
-            self.n_requested_males = req_metadat['n_rats']['male']['total']
-            self.n_requested_females = req_metadat['n_rats']['female']['total']
             self.n_requested_males_high = req_metadat['n_rats']['male']['high']
             self.n_requested_males_low = req_metadat['n_rats']['male']['low']
             self.n_requested_females_high = \
@@ -605,6 +474,65 @@ class RATTACA(Request):
         # initialize the delta for the request
         self.delta = 0
 
+        # merge trait predictions into colony data
+        self.setup_trait_metadata(args)
+
+        # create a list of rats available for assignment, ordered by trait prediction
+        # self.available_rfids = self.trait_metadata['rfid'].tolist()
+
+        print('Finished initializing RATTACA request') # debug message - delete later
+        print(self.__dict__.keys()) # debug message - delete later
+
+    # function to set up trait metadata for a project request
+    def setup_trait_metadata(self, args):
+
+        print('Starting setup_trait_metadata') # debug message - can delete later
+        print(f'colony_df shape: {self.colony_df.shape}') # debug - delete
+ 
+        if args.exclude:
+            exclude_rfids = pd.read_csv(args.exclude[0], header = None)\
+                .astype(str)[0].values
+        else:
+            exclude_rfids = []
+
+        # read in predictions
+        predictions_df = pd.read_csv(args.predictions[0], dtype = {'rfid': str})
+
+        # merge predictions with colony metadata
+        all_metadata = self.colony_df.merge(
+            predictions_df[['rfid', self.trait]], on='rfid', how='right')
+
+        # sort by the requested trait, remove NAs
+        self.trait_metadata = all_metadata.sort_values(by = self.trait, 
+            axis=0, ascending=False)\
+                .dropna(subset=self.trait, ignore_index=True)
+
+        # add a column of high/low group assignments
+        self.trait_metadata[f'{self.trait}_2group'] = \
+            self.trait_groups(self.trait, n_groups=2)
+
+        # drop rats from the exclude list
+        self.trait_metadata = self.trait_metadata[~self.trait_metadata['rfid'].\
+            isin(exclude_rfids)]
+
+        # drop any groups that aren't requested
+        if self.n_requested_males == 0:
+            self.trait_metadata = self.trait_metadata\
+                [self.trait_metadata['sex'] != 'M']
+        if self.n_requested_females == 0:
+            self.trait_metadata = self.trait_metadata\
+                [self.trait_metadata['sex'] != 'F']
+        if self.n_requested_high == 0:
+            self.trait_metadata = self.trait_metadata\
+                [self.trait_metadata[f'{self.trait}_2group'] != 'high']
+        if self.n_requested_low == 0:
+            self.trait_metadata = self.trait_metadata\
+                [self.trait_metadata[f'{self.trait}_2group'] != 'low']
+
+        # create a list of rats available for assignment, ordered by trait prediction
+        self.available_rfids = self.trait_metadata['rfid'].tolist()
+
+        print(f'trait_metadata set with shape: {self.trait_metadata.shape}') # debug message - can delete later
 
     # function to propose an assignment of RFIDs to a project
     # unavail_rats = either empty, or a list of RFIDs,
@@ -761,6 +689,49 @@ class RATTACA(Request):
             self.available_rfids = [rfid for rfid in self.available_rfids \
                                     if rfid not in drop_rfids]
 
+
+    # function to manually assign rats to a projects as needed
+    def assign_manual(self, rfids_to_assign): # rats_to_assign = best_rfids
+
+        if isinstance(rfids_to_assign, list):
+            pass
+        else:
+            raise TypeError('rfids_to_assign must be a list')
+        
+        rats_to_assign = {}
+        # ensure rats designated for assignment are actually available,
+        # get relevant metadata for available RFIDS
+        for rfid in rfids_to_assign:
+            if rfid not in self.available_rfids:
+                raise ValueError(f'''RFID {rfid} is not available for assignment, 
+                                 was NOT assigned''')
+            else:
+                rats_to_assign[rfid] = self.available_rats[rfid]        
+            rat_sex =  rats_to_assign[rfid][0]
+            rat_group =  rats_to_assign[rfid][2]
+
+            if (rat_sex == 'M') & (rat_group == 'high'):
+                assign_to = self.assigned_males_high
+                n_requested = self.n_requested_males_high
+            elif (rat_sex == 'M') & (rat_group == 'low'):
+                assign_to = self.assigned_males_low
+                n_requested = self.n_requested_males_low
+            elif (rat_sex == 'F') & (rat_group == 'high'):
+                assign_to = self.assigned_females_high
+                n_requested = self.n_requested_females_high
+            elif (rat_sex == 'F') & (rat_group == 'low'):
+                assign_to = self.assigned_females_low
+                n_requested = self.n_requested_females_low
+
+            if not self.is_satisfied(rat_sex, rat_group):
+                assign_to[rfid] = rats_to_assign[rfid]
+                self.remove([rfid])
+            else:
+                print(f'''RFID {rfid} could not be assigned. All \
+                      {n_requested} {assign_to} assignments are \
+                        already satisfied''')
+
+
     # function to check if a prediction-based RATTACA project has 
     # successfully assigned all requested rats
     def is_satisfied(self, sex=None, group=None):
@@ -786,11 +757,40 @@ class RATTACA(Request):
 
         return(n_remaining == 0)
 
+    # function to assign high/low group values
+    def trait_groups(self, trait, n_groups=2):
+
+        df = self.trait_metadata
+        preds = df[trait].tolist()
+        trait_quantiles = np.quantile(a = preds, 
+                                      q = np.linspace(0,1, n_groups+1))
+        if n_groups == 2:
+            def get_2group(val, quantiles):
+                if val >= quantiles[1]:
+                    return 'high'
+                else:
+                    return 'low'
+            groups = [get_2group(pred, trait_quantiles) for pred in preds]
+        
+        if n_groups == 3:
+            def get_3group(val, quantiles):
+                if val < quantiles[1]:
+                    return 'low'
+                elif val >= quantiles[2]:
+                    return 'high'
+                else:
+                    return 'mid'
+            groups = [get_3group(pred, trait_quantiles) for pred in preds]
+        
+        if n_groups > 3:
+            groups = np.digitize(preds, trait_quantiles)
+            
+        return groups
 
 # Request subclass for randomly-assigned projects
-class RandProj(Request, sibs_per_litter=None):
+class RandProj(Request):
     
-    def __init__(self, request_file, args):
+    def __init__(self, request_file, args, sibs_per_litter=None):
         
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
