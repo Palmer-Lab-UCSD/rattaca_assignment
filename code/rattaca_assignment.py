@@ -22,6 +22,15 @@ from itertools import permutations
 
 ### functions ###
 
+# function to list which types of requests have been made
+def which_requests(args):
+    which_types = []
+    for proj_request in args.requests:
+        request = Request(proj_request, args)
+        req_type = request.assignment_type
+        which_types.append(req_type)
+    return(list(set(which_types)))  
+
 def parse_args(args):
     parser = argparse.ArgumentParser(
                     prog='RATTACA assignment',
@@ -178,17 +187,28 @@ def main(args):
             request = RandProj(proj_request, args)
             random_requests.append(request)
         if request.assignment_type == 'hsw_breeders':
-            request = HSWBreeders(proj_request, args)
-            hsw_breeders = request
+            breeder_request = HSWBreeders(proj_request, args)
+    
+    # list which types of requests are currently being processed
+    requests_made = which_requests(args)
 
-    # assign HSW breeders by priority
-    priority_breeders = prioritize_breeders(args)
-    hsw_breeders.assign(priority_breeders)
-    for request in [rattaca_requests + random_requests]:
-        request.remove(priority_breeders)
-        
-    # list all requests for assignment
-    all_requests = hsw_breeder_requests + rattaca_requests + random_requests
+    if ('rattaca' in requests_made) and ('random' in requests_made):
+        all_requests = [rattaca_requests + random_requests]
+    elif ('rattaca' in requests_made) and ('random' not in requests_made):
+        all_requests = rattaca_requests
+    elif ('rattaca' not in requests_made) and ('random' in requests_made):
+        all_requests = random_requests
+    
+    if 'hsw_breeders' in requests_made:
+
+        # assign HSW breeders by priority
+        priority_breeders = prioritize_breeders(args)
+        hsw_breeders.assign(priority_breeders)
+        for request in [rattaca_requests + random_requests]:
+            request.remove(priority_breeders)
+            
+        # list all requests for assignment
+        all_requests = all_requests + breeder_request
 
     # permute the assignment order to all requests
     ar = 0
