@@ -2,9 +2,19 @@
     "project" : "random_1",
     "trait" : "random_1_naive",
     "assignment_type" : "random",
+    "max_males_per_fam" : 1,
+    "max_females_per_fam" : 1,
     "n_rats": {
         "total" : 24,
-        "male" : 12,
-        "female" : 12
+        "male" : {
+            "total" : 12,
+            "high" : 0,
+            "low" : 0
+        },
+        "female" : {
+            "total" : 12,
+            "high" : 0,
+            "low" : 0                           
+        }
     }
 }

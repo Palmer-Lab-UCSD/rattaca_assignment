@@ -1,4 +1,6 @@
-import rattaca_assignment as ra
+from rattaca_assignment.request import Request
+from rattaca_assignment.request_rattaca import RATTACA
+from rattaca_assignment.main import parse_args
 import unittest
 import argparse
 import os
@@ -7,7 +9,7 @@ import numpy as np
 import random
 
 # set up test datasets
-proj_dir = os.path.join('../') 
+proj_dir = '/tscc/projects/ps-palmer/hs_rats/rattaca/assignment/rattaca_assignment.git'
 req_dir = os.path.join(proj_dir, 'proj_requests')
 data_dir = os.path.join(proj_dir, 'data')
 metadata = os.path.join(data_dir, 'hsw_gen100_colony.csv')
@@ -20,8 +22,8 @@ trait_3 = os.path.join(req_dir, 'rattaca', 'trait_3.json')
 # set up input arguments
 input_args = ['-c', metadata, '-p', preds, '-r', trait_1, trait_2, 
               trait_3, '-e', exclude]
-args_excl = ra.parse_args(input_args) # uses the list of RFIDs to exclude
-args_all = ra.parse_args(input_args[:-2]) # all rats
+args_excl = parse_args(input_args) # uses the list of RFIDs to exclude
+args_all = parse_args(input_args[:-2]) # all rats
 
 exclude_rfids = pd.read_csv(exclude, header = None).astype(str)[0].\
     values.tolist()
@@ -60,7 +62,7 @@ class TestParser(unittest.TestCase):
     
     # test that args elements are read in correctly
     def test_parse_args_simple(self):
-        args = ra.parse_args(['-c', 'colony_df_file',
+        args = parse_args(['-c', 'colony_df_file',
                               '-p', 'preds_file',
                               '-r','first_request_file','second_request_file'])
         self.assertEqual(args.colony_dataframe[0], 'colony_df_file')
@@ -76,12 +78,12 @@ class TestRequest(unittest.TestCase):
     def setUp(self):
 
         # create Request instances for testing
-        self.request1 = ra.Request(trait_1, args_all) # all rats
-        self.request2 = ra.Request(trait_2, args_all)
-        self.request3 = ra.Request(trait_3, args_all)
-        self.excl_req1 = ra.Request(trait_1, args_excl) # uses the exclude file
-        self.excl_req2 = ra.Request(trait_2, args_excl) # uses the exclude file
-        self.excl_req3 = ra.Request(trait_3, args_excl) # uses the exclude file
+        self.request1 = Request(trait_1, args_all) # all rats
+        self.request2 = Request(trait_2, args_all)
+        self.request3 = Request(trait_3, args_all)
+        self.excl_req1 = Request(trait_1, args_excl) # uses the exclude file
+        self.excl_req2 = Request(trait_2, args_excl) # uses the exclude file
+        self.excl_req3 = Request(trait_3, args_excl) # uses the exclude file
 
         self.full_req_list = [self.request1, self.request2, self.request3]
         self.excl_req_list = [self.excl_req1, self.excl_req2, self.excl_req3]
@@ -146,12 +148,12 @@ class TestRATTACA(unittest.TestCase):
     def setUp(self):
 
         # create Request instances for testing
-        self.request1 = ra.RATTACA(trait_1, args_all) # all rats
-        self.request2 = ra.RATTACA(trait_2, args_all)
-        self.request3 = ra.RATTACA(trait_3, args_all)
-        self.excl_req1 = ra.RATTACA(trait_1, args_excl) # uses the exclude file
-        self.excl_req2 = ra.RATTACA(trait_2, args_excl) # uses the exclude file
-        self.excl_req3 = ra.RATTACA(trait_3, args_excl) # uses the exclude file
+        self.request1 = RATTACA(trait_1, args_all) # all rats
+        self.request2 = RATTACA(trait_2, args_all)
+        self.request3 = RATTACA(trait_3, args_all)
+        self.excl_req1 = RATTACA(trait_1, args_excl) # uses the exclude file
+        self.excl_req2 = RATTACA(trait_2, args_excl) # uses the exclude file
+        self.excl_req3 = RATTACA(trait_3, args_excl) # uses the exclude file
 
         self.full_req_list = [self.request1, self.request2, self.request3]
         self.excl_req_list = [self.excl_req1, self.excl_req2, self.excl_req3]
@@ -537,11 +539,6 @@ class TestRATTACA(unittest.TestCase):
             self.assertEqual(len(req.available_rats),req.trait_metadata.shape[0])
 
     #     ### TO DO: test for updates to properties after assignments
-
-
-#     def test_delta(self):
-#         with self.assertRaises(NotImplementedError):
-#             self.request1.delta
 
 
 if __name__ == '__main__':

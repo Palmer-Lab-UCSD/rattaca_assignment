@@ -2,6 +2,8 @@
     "project" : "random_1",
     "trait" : "random_1_experimental",
     "assignment_type" : "random",
+    "max_males_per_fam" : 1,
+    "max_females_per_fam" : 1,
     "n_rats": {
         "total" : 96,
         "male" : {

@@ -2,9 +2,19 @@
     "project" : "random_2",
     "trait" : "random_2_experimental",
     "assignment_type" : "random",
+    "max_males_per_fam" : 2,
+    "max_females_per_fam" : 2,
     "n_rats": {
         "total" : 90,
-        "male" : 45,
-        "female" : 45
+        "male" : {
+            "total" : 45,
+            "high" : 0,
+            "low" : 0
+        },
+        "female" : {
+            "total" : 45,
+            "high" : 0,
+            "low" : 0                           
+        }
     }
 }
