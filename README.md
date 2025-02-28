@@ -1,9 +1,8 @@
 # RATTACA assignment :rat: :dart:
-last update: 27 Feb 25 by Ben Johnson (bbjohnson@health.ucsd.edu)
 
 A Python package for assigning HS West rats to RATTACA projects based on genetic predictions.  
 
-:construction: Under Construction :construction:
+:construction::construction: Under Construction :construction::construction:
 
 [RATTACA](https://ratgenes.org/rattaca/) is a research service that (1) uses genome-wide SNP genotypes to predict phenotypes in HS rats, then (2) uses these trait predictions to assign for study animals with predicted extreme phenotypes. This package provides helper tools for step (2): assigning HS rats to projects requesting phenotypically extreme animals. 
 
@@ -67,14 +66,41 @@ Command line options:
 - `-o, --output_prefix`: Output file prefix (optional)
 - `-e, --exclude_rfids`: Path to CSV file containing RFIDs to exclude from assignment (optional)
 
+### Python API
+
+The package can also be used programmatically:
+
+```python
+from rattaca_assign.core.assignment import run_assignments
+from rattaca_assign.core.utils import prep_colony_df
+
+# parse command line args
+args = parse_args(['--colony_df', 'colony.csv', '--predictions', 'preds.csv', '--request_files', 'request1.json', 'request2.json'])
+
+# run the assignment algorithm
+assignments = run_assignments(args)
+
+# output the results
+for project, rfids in assignments.items():
+    print(f"Project: {project}, RFIDs: {rfids}")
+```
+
+### Testing
+
+To run unit tests for all package modules, run this bash command from the package top directory:
+
+```bash
+#!/bin/bash
+
+python -m unittest discover
+```
+
 ## Request Files
 
-Request files are JSON files that specify a given project's request details and assignment parameters. 
-Three types of request files are supported:
+`rattaca_assign` requires at least one request file as an input. Request files are JSON files that specify a given project's request details and assignment parameters. They must be formatted depending on project type, as outlined below. Three types of request files are supported:
 
 1. RATTACA requests - Assignments based on genetic predictions
-2. Random requests - Assignments made semi-randomly, usually within some constraints 
-(such as a limit on the number of siblings allowed from a given family)
+2. Random requests - Assignments made semi-randomly, usually within some constraints (such as a limit on the number of siblings allowed from a given family)
 3. HSW Breeder requests - Assignments to the breeder pool at the HS West colony.
 
 Example json file for a RATTACA project requesting 10 male and 10 female rats with high or low predictions for the hypothetical trait "anxiety_score". The trait name corresponds to a column in `predictions.csv`:
@@ -140,34 +166,6 @@ Example json file for HSW breeders. Assignment type, project name, and trait nam
 }
 ```
 
-## Python API
-
-The package can also be used programmatically:
-
-```python
-from rattaca_assign.core.assignment import run_assignments
-from rattaca_assign.core.utils import prep_colony_df
-
-# parse command line args
-args = parse_args(['--colony_df', 'colony.csv', '--predictions', 'preds.csv', '--request_files', 'request1.json', 'request2.json'])
-
-# run the assignment algorithm
-assignments = run_assignments(args)
-
-# output the results
-for project, rfids in assignments.items():
-    print(f"Project: {project}, RFIDs: {rfids}")
-```
-
-## Testing
-
-To run unit tests for all package modules, run this bash command from the package top directory:
-
-```bash
-#!/bin/bash
-
-python -m unittest discover
-```
 
 ## License
 
