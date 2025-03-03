@@ -2,7 +2,7 @@
 
 A Python package for assigning HS West rats to RATTACA projects based on genetic predictions.  
 
-:construction::construction: Under Construction :construction::construction:
+:construction: :construction: Under Construction :construction: :construction:
 
 [RATTACA](https://ratgenes.org/rattaca/) is a research service that (1) uses genome-wide SNP genotypes to predict phenotypes in HS rats, then (2) uses these trait predictions to assign for study animals with predicted extreme phenotypes. This package provides helper tools for step (2): assigning HS rats to projects requesting phenotypically extreme animals. 
 

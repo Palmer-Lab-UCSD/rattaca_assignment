@@ -48,9 +48,12 @@ class HSWBreeders(Request):
         self.fams_without_females = \
             list(set(self.all_fams) - set(self.fams_with_females))
 
+        print(f'Initialized HSW breeders request: {self.n_requested_males} M + {self.n_requested_females} F')
 
     def update_breeders(self, non_breeder_requests):
+        '''
 
+        '''
         if isinstance(non_breeder_requests, list):
             pass
         else:
@@ -625,7 +628,8 @@ class HSWBreeders(Request):
         
         Returns:
             A dictionary with RFIDs of male rats that are available for 
-            assignment, but are not eligible for assignment as breeders.
+            assignment elsewhere, but are not eligible for assignment as 
+            breeders.
         '''
 
         assigned_m_fams = \
@@ -649,12 +653,13 @@ class HSWBreeders(Request):
     def unavail_female_sibs(self):
         '''
         Get RFIDs for non-assigned female rats that are not eligible for 
-        assignment as breeders. Females are excluded from eligibility as breeders 
-        once a female sibling has been assigned as a breeder.
+        assignment as breeders. Females are excluded from eligibility as 
+        breeders once a female sibling has been assigned as a breeder.
         
         Returns:
             A dictionary with RFIDs of female rats that are available for 
-            assignment, but are not eligible for assignment as breeders.
+            assignment elsewhere, but are not eligible for assignment as 
+            breeders.
         '''
 
         assigned_f_fams = \
@@ -747,7 +752,7 @@ class HSWBreeders(Request):
         Count the number of rats currently assigned to the request.
         
         Returns:
-            A dictionary counts of assigned rats, grouped by sex.
+            A dictionary with counts of assigned rats, grouped by sex.
         '''
 
         n_assigned_males = len(self.assigned_rats['assigned_males'])
@@ -768,7 +773,7 @@ class HSWBreeders(Request):
         request.
         
         Returns:
-            A dictionary counts of remaining assignments, grouped by sex.
+            A dictionary with counts of remaining assignments, grouped by sex.
         '''
 
         n_remaining_males = self.n_requested_males - \

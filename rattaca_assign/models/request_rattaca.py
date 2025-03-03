@@ -32,6 +32,8 @@ class RATTACA(Request):
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
             req_metadata = json.load(rf)
+            self.trait = req_metadata['trait']
+            self.project = req_metadata['project']
             self.n_requested_males_high = req_metadata['n_rats']['male']['high']
             self.n_requested_males_low = req_metadata['n_rats']['male']['low']
             self.n_requested_females_high = req_metadata['n_rats']['female']['high']
@@ -51,7 +53,7 @@ class RATTACA(Request):
         # merge trait predictions into colony data
         self.setup_trait_metadata(args)
 
-        print('Finished initializing RATTACA request')
+        print(f'Initialized RATTACA request: {self.trait} for {self.project}')
 
 
     # function to manually assign rats to a projects as needed

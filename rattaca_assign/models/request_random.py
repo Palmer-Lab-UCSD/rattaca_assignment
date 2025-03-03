@@ -1,12 +1,28 @@
-### dependencies ###
+"""
+RandProj request class for random assignment.
+"""
+
 import json
 import random
-from rattaca_assignment.request import Request
+from rattaca_assign.models.request import Request
 
-### Request subclass for randomly-assigned projects
+
 class RandProj(Request):
+    """
+    Request subclass for randomly-assigned projects.
+    
+    This class handles random assignment of rats to projects without
+    considering genetic predictions.
+    """
     
     def __init__(self, request_file, args):
+        """
+        Initialize a random assignment request.
+        
+        Args:
+            request_file: path to JSON request file.
+            args: command line arguments.
+        """
 
         # inherit attributes from the parent Request class
         super().__init__(request_file, args)
@@ -47,10 +63,27 @@ class RandProj(Request):
         self.fams_without_females = \
             list(set(self.all_fams) - set(self.fams_with_females))
 
+        print(f'Initialized random request: {self.trait} for {self.project}')
 
     # function to check if a randomly-assigned project has 
     # successfully assigned all requested rats
     def is_satisfied_random(self, sex=None):
+        '''
+        Test whether a random request has been fulfilled (all assignments to 
+        the request have been satisfied).
+
+        Request.is_satisfied() tests if all assignments (both sexes
+        from all breeder pairs) have been completed for the request. 
+        Request.is_satisfied(sex = 'M') tests if all male assignments have been 
+        completed.
+        
+        Args:
+            sex: Optional sex filter (M/F).
+            
+        Returns:
+            Boolean indicating if request is satisfied for the criteria input
+            into the function.
+        '''
 
         if sex is None:
             n_remaining = self.n_remaining['n_remaining_total']
@@ -65,6 +98,13 @@ class RandProj(Request):
     # property to track rats that have been assigned to the project
     @property
     def assigned_rats(self):
+        '''
+        Get all rats assigned to the request.
+        
+        Returns:
+            A dictionary with RFIDs of assigned rats, grouped by sex.
+        '''
+
         assigned_males = self.assigned_males
         assigned_females = self.assigned_females
         assigned_total = assigned_males | assigned_females
@@ -76,6 +116,13 @@ class RandProj(Request):
    # counters to track the number of assigned rats
     @property
     def n_assigned(self):
+        '''
+        Count the number of rats currently assigned to the request.
+        
+        Returns:
+            A dictionary counts of assigned rats, grouped by sex.
+        '''
+
         n_assigned_males = len(self.assigned_rats['assigned_males'])
         n_assigned_females = len(self.assigned_rats['assigned_females'])
         n_assigned_total = len(self.assigned_rats['assigned_total'])
@@ -89,6 +136,13 @@ class RandProj(Request):
     # counters to track the number of assignments remaining
     @property
     def n_remaining(self):
+        '''
+        Count the number of rats that currently remain to be assigned to the 
+        request.
+        
+        Returns:
+            A dictionary counts of remaining assignments, grouped by sex.
+        '''
 
         n_remaining_males = self.n_requested_males - \
             self.n_assigned['n_assigned_males']
@@ -105,6 +159,14 @@ class RandProj(Request):
 
     @property
     def n_remaining_per_fam(self):
+        '''
+        Count the number of rats available for assignment to the request from 
+        each breederpair still available to contribute rats.
+        
+        Returns:
+            A dictionary with counts of remaining assignments per breederpair, 
+            grouped by sex.
+        '''
 
         males_df = self.trait_metadata[self.trait_metadata['sex'] == 'M']
         females_df = self.trait_metadata[self.trait_metadata['sex'] == 'F']
@@ -150,6 +212,15 @@ class RandProj(Request):
     # to sample for assignment
     @property
     def assigned_breederpairs(self):
+        '''
+        Get all breederpairs that have contributed rats to the request.
+        
+        Returns:
+            A dictionary with breederpair IDs of pairs with offspring that have
+            been assigned to the request, grouped by sex. The male list 
+            returns families that have contributed male rats, the female 
+            list returns families that have contributed female rats.
+        '''
 
         # update trait metadata to include only breederpairs that are currently 
         # available for assignment
@@ -196,6 +267,17 @@ class RandProj(Request):
     # to sample for assignment
     @property
     def available_breederpairs(self):
+        '''
+        TO DO: This needs editing to accommodate max_(fe)males_per_fam
+
+        Get all breederpairs from which rats can currently be assigned.
+        
+        Returns:
+            A dictionary with breederpair IDs for pairs with offspring that are 
+            still available for assignment, grouped by sex. The male list 
+            returns families still eligible to contribute male rats, the female 
+            list returns families eligible to contribute female rats.
+        '''
 
         n_males_remaining = \
             self.n_remaining_per_fam['n_available_males']
@@ -242,6 +324,14 @@ class RandProj(Request):
 
     @property
     def filled_breederpairs(self):
+        '''
+        Get all breederpairs who have contributed the maximum number of rats 
+        possible, per sex.
+
+        Returns: 
+            A dictionary of breederpairs that are no longer eligible to 
+            contribute rats, grouped by sex.
+        '''
 
         assigned_m_fams = self.assigned_breederpairs['assigned_fams_m']
         assigned_f_fams = self.assigned_breederpairs['assigned_fams_f']
@@ -269,6 +359,19 @@ class RandProj(Request):
     # currently excluded from assignment
     @property
     def unavail_male_sibs(self):
+        '''
+        TO DO: check this works appropriately, may need to recode using max_male_siblings
+
+        Get RFIDs for non-assigned male rats that are not eligible for 
+        assignment to the request. Males are excluded from eligibility 
+        once n=max_male_siblings-1 brothers have been assigned.
+        
+        Returns:
+            A dictionary with RFIDs of male rats that are available for 
+            assignment elsewhere, but are not eligible for assignment to the
+            request.
+        '''
+
         filled_m_fams = \
             list(self.filled_breederpairs['filled_fams_m'].keys())
         m_metadata = self.trait_metadata[self.trait_metadata['sex']=='M']
@@ -288,6 +391,19 @@ class RandProj(Request):
     # currently excluded from assignment
     @property
     def unavail_female_sibs(self):
+        '''
+        TO DO: check this works appropriately, may need to recode using max_female_siblings
+
+        Get RFIDs for non-assigned female rats that are not eligible for 
+        assignment to the request. Females are excluded from eligibility 
+        once n=max_female_siblings-1 sisters have been assigned.
+        
+        Returns:
+            A dictionary with RFIDs of female rats that are available for 
+            assignment elsewhere, but are not eligible for assignment to the
+            request.
+        '''
+
         filled_f_fams = \
             list(self.filled_breederpairs['filled_fams_f'].keys())
         f_metadata = self.trait_metadata[self.trait_metadata['sex']=='F']
@@ -306,6 +422,14 @@ class RandProj(Request):
     # property to track all males currently available for assignment
     @property
     def available_males(self):
+        '''
+        Get RFIDs for all male rats that are currently eligible for 
+        assignment to the request.
+        
+        Returns:
+            A dictionary with RFIDs of male rats that are available and 
+            eligbible for assignment.
+        '''
 
         available_males = {}
         avail_m_fams = self.available_breederpairs['available_fams_m']
@@ -319,6 +443,14 @@ class RandProj(Request):
     # property to track all females currently available for assignment
     @property
     def available_females(self):
+        '''
+        Get RFIDs for all male rats that are currently eligible for 
+        assignment to the request.
+        
+        Returns:
+            A dictionary with RFIDs of male rats that are available and 
+            eligbible for assignment.
+        '''
 
         available_females = {}
         avail_f_fams = self.available_breederpairs['available_fams_f']
@@ -332,52 +464,88 @@ class RandProj(Request):
     # property to track all rats currently available for assignment
     @property
     def available_rats(self):
+        '''
+        Get RFIDs for all rats that are currently eligible for 
+        assignment to the request.
+        
+        Returns:
+            A dictionary with RFIDs of male and female rats that are available 
+            and eligbible for assignment.
+        '''
+
         return self.available_males | self.available_females
 
 
     # update the list of available RFIDs following removal
-    def update_random(self, remaining_requests):
-
+    def update_randproj(self, remaining_requests):
+        '''
+        TO DO: This is the same function as used by the HSWBreeders class, 
+        except it was left without the last few lines used by that class. Check
+        that this is the appropriate functionality needed for random requests or 
+        otherwise change as needed.
+        '''
         if isinstance(non_breeder_requests, list):
             pass
         else:
-            raise TypeError('remaining_requests must be a list of Request classes')
+            raise TypeError('non_breeder_requests must be a list of Request classes')
 
-        use_requests = [req for req in remaining_requests if not req.is_satisfied()]
+        use_requests = [req for req in non_breeder_requests if not req.is_satisfied()]
         df = self.trait_metadata
 
         # list all rats that have been assigned to other projects
-        males_assigned_elsewhere = []
-        females_assigned_elsewhere = []
+        assigned_males = []
+        assigned_females = []
         for request in use_requests:
             request_males = \
                 list(request.assigned_rats['assigned_males'].keys())
             request_females = \
                 list(request.assigned_rats['assigned_females'].keys())
-            males_assigned_elsewhere.extend(request_males)
-            females_assigned_elsewhere.extend(request_females)
+            assigned_males.extend(request_males)
+            assigned_females.extend(request_females)
 
-        assigned_males = list(self.assigned_males.keys())
-        assigned_females = list(self.assigned_females.keys())
+        male_breeders = list(self.assigned_males.keys())
+        female_breeders = list(self.assigned_females.keys())
         
-        filled_breeder_fams_m = self.filled_breederpairs['filled_fams_m']
+        filled_breeder_fams_m = self.assigned_breederpairs['assigned_fams_m']
         filled_fam_rfids_m = [v[1] for v in filled_breeder_fams_m.values()] 
-        filled_breeder_fams_f = self.filleed_breederpairs['assigned_fams_f']
+        filled_breeder_fams_f = self.assigned_breederpairs['assigned_fams_f']
         filled_fam_rfids_f = [v[1] for v in filled_breeder_fams_f.values()] 
 
         # list all rats not available for assignment: 
         # breeders + breeder siblings + rats assigned to other projects
         unavail_males = \
-            assigned_males + males_assigned_elsewhere + filled_fam_rfids_m
+            assigned_males + male_breeders + filled_fam_rfids_m
         unavail_females = \
-            assigned_females + females_assigned_elsewhere + filled_fam_rfids_f
+            assigned_females + female_breeders + filled_fam_rfids_f
         unavail_rfids = unavail_males + unavail_females
 
         # update the list of rats available for assignment to breeders
         self.available_rfids = \
             list(set(self.available_rfids) - set(unavail_rfids))
 
+        # # check if any rats are now priority for assignment to breeders
+        # new_priority_breeders = self.prioritize_breeders()
+
+        # return new_priority_breeders
+
     def assign_randproj(self, remaining_requests=None, fill_request=False):
+        '''
+        TO DO: this is the same function as used by rattaca requests. Check if 
+        this needs to be universalized for the Request class or if sub-classes 
+        need type-specific functions
+
+        Assign RFIDs to the request semi-randomly.
+        
+        Args:
+            remaining_requests: (optional) A list of all other currently open 
+                request objects. Used to update remaining requests when rats 
+                are to the current request.
+            fill_request: A boolean indicating whether to "fill" the breeders 
+                request to completion. Default=False, meaning rats are only 
+                assigned one at a time, leaving as many rats as possible 
+                available for assignment to other projects.
+
+        '''
 
         available_m_fams = self.available_breederpairs['available_fams_m']
         available_f_fams = self.available_breederpairs['available_fams_f']
@@ -428,14 +596,20 @@ class RandProj(Request):
             rats_to_remove = successfully_assigned, 
             remaining_requests = remaining_requests)
 
-        # fill all remaining breeder assignments if desired
+        # fill all remaining assignments if desired
         if fill_request is True:
             self.assign_remainder()
     
 
     # fill all remaining breeder assignments
     def assign_remainder(self):
-        # print('ASSIGN_REMAINDER')
+        '''Assign RFIDs until the request is fulfilled.'''
+        '''
+        TO DO: this is the same function as used by breeder requests. Check if 
+        this needs to be universalized for the Request class or if sub-classes 
+        need type-specific functions
+        '''
+
         final_males = {}
         final_females = {}
         avail_males = self.available_breederpairs['available_fams_m']
