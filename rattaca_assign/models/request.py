@@ -1,6 +1,6 @@
 import json
 import pandas as pd
-from rattaca_assignment.utils import prep_colony_df
+from rattaca_assign.utils import prep_colony_df
 
 ### Request parent class
 class Request:
@@ -61,7 +61,21 @@ class Request:
 
     # generic function to assign rats to a project, remove them from availability
     def assign(self, rats_to_assign=None, remaining_requests=None, fill_request=None):
-        '''Algorithmically assign RFIDs to a request'''
+        '''
+        Algorithmically assign RFIDs to a request.
+
+        This is a generic function. Depending on the request type, it will call 
+        a type-specific function to assign RFIDs.
+        
+        args:
+            rats_to_assign (optional): a list or dictionary of RFIDs to assign 
+                to the request
+            remaining_requests (optional): a list of request objects whose 
+                assignment has not yet been completed
+            fill_request (optional): a boolean indicating whether to immediately 
+                complete all assignments to the request (without permuting 
+                assignments to other requests)
+        '''
 
         if self.assignment_type == 'rattaca':
             return self.assign_rattaca(rats_to_assign)
@@ -75,7 +89,29 @@ class Request:
                             file for this project request')
 
     def assign_manual(self, rats_to_assign, override=None):
-        '''Manually assign RFIDs to a request'''
+        '''
+        Manually assign RFIDs to a request.
+
+        This is a generic function. Depending on the request type, it will call 
+        a type-specific function to assign RFIDs.
+        
+        args:
+            rats_to_assign: a list or dictionary of RFIDs to assign 
+                to the request
+            remaining_requests (optional): a list of request objects whose 
+                assignment has not yet been completed
+            override (optional): For hsw_breeders requests only. A boolean 
+                indicating whether to override constraints set for the breeders
+                request. For example, if one male from litter X has already been
+                assigned but another is still needed (say to compensate for 
+                another litter that produced no males), setting override = False
+                will result in an error due to request constraints, but 
+                override = True will successfully assign all IDs provided by 
+                rats_to_assign, regardless of constraints. Using override = False
+                is a good strategy for assigning breeders ad-hoc to replace 
+                original assignments that may be dead or missing, while ensuring
+                desired constraints are still observed.
+        '''
 
         if self.assignment_type == 'rattaca':
             return self.assign_manual_rattaca(rats_to_assign)
@@ -90,6 +126,35 @@ class Request:
 
     # generic function to check if the request has been fulfilled
     def is_satisfied(self, sex=None, group=None, family=None):
+        '''
+        Test whether a request has been fulfilled (all assignments to the 
+        request have been satisfied).
+
+        Any combination of sexes, group classifications, or family IDs can be 
+        used. Whichever parameters are set, the funciton will test whether the
+        total number of rats meeting those criteria have been successfully 
+        assigned to the request. 
+
+        For example, Request.is_satisfied() tests if all assignments (to all
+        groups) have been completed for the request. 
+        Request.is_satisfied(sex = 'M', group = 'low') tests if all assignments 
+        for high-group males have been completed. 
+
+        This is a generic function. Depending on the request type, it will call 
+        a type-specific function to test request fulfillment.
+        
+        Args:
+            sex (optional): Tests if the total number of rats of a given 
+                sex have been assigned
+            group (optional): Tests if the total number of rats from a given 
+                group classification (high vs. low) have been assigned
+            family (optional): Tests if the total number of rats allowed from a 
+                given breeder pair have been assigned
+
+        Returns:
+            A boolean indicating request fulfillment under the constraints set 
+            by the input parameters.
+        '''
         
         if self.assignment_type == 'rattaca':
             return self.is_satisfied_rattaca(sex, group)

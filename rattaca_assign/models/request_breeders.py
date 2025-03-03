@@ -1,7 +1,10 @@
-### dependencies ###
+'''
+HSWBreeders request class for assigning rats to the HS West colony.
+'''
+
 import json
-import random
-from rattaca_assignment.request import Request
+from rattaca_assign.models.request import Request
+
 
 ### Request subclass for HS West breeders
 class HSWBreeders(Request):
@@ -31,7 +34,7 @@ class HSWBreeders(Request):
         self.available_fams_m = {}
         self.available_fams_f = {}
         
-        self.all_fams = self.colony_df['breederpair'].unique()
+        self.all_fams = self.colony_df['breederpair'].unique().tolist()
         fams_with_males = self.colony_df.groupby('breederpair').\
             filter(lambda df: 'M' in df['sex'].values)
         fams_with_females = self.colony_df.groupby('breederpair').\
@@ -95,7 +98,8 @@ class HSWBreeders(Request):
 
     # function to assign breeders a priori
     def prioritize_breeders(self):
-        '''Assigns singleton offspring to HSW breeders by priority 
+        '''
+        Assigns singleton offspring to HSW breeders by priority 
         prior to project assignments.
         
         Identifies all rats that are the only M or F from their litter,
@@ -136,7 +140,19 @@ class HSWBreeders(Request):
         return(breeders)
 
 
-    def assign_hsw_breeders(self, non_breeder_requests=None, fill_request=False):
+    def assign_hsw_breeders(self, non_breeder_requests=None, assign_remainder=False):
+        '''
+        Assign RFIDs to HSW breeders.
+        
+        Args:
+            non_breeder_requests: (optional) A list of all currently open 
+                request objects that are not for HSW breeders. Used to update 
+                remaining requests when breeders are assigned.
+            assign_remainder: A boolean indicating whether to "fill" the breeders 
+                request to completion. Default=False, meaning breeders are only 
+                assigned by priority/necessity, leaving as many rats as possible 
+                available for assignment to other projects.
+        '''
 
         # assign breeders by priority
         breeders_to_assign = self.prioritize_breeders()
@@ -176,13 +192,14 @@ class HSWBreeders(Request):
             remaining_requests = non_breeder_requests)
 
         # fill all remaining breeder assignments if desired
-        if fill_request is True:
+        if assign_remainder is True:
             self.assign_remainder()
     
 
     # fill all remaining breeder assignments
     def assign_remainder(self):
-        # print('ASSIGN_REMAINDER')
+        '''Assign RFIDs to HSW breeders until the request is fulfilled.'''
+
         final_males = {}
         final_females = {}
         avail_males = self.available_breederpairs['available_fams_m']
@@ -237,6 +254,22 @@ class HSWBreeders(Request):
 
     # function to manually assign rats to a projects as needed
     def assign_manual_hsw_breeders(self, rfids_to_assign, override = False):
+        '''
+        Manually assign RFIDs to HSW breeders.
+        
+        Args:
+            rfids_to_assign: A list of desired RFIDs to be assigned as breeders.
+            override: A boolean indicating whether to override constraints set 
+                for the request. For example, if one male from litter X has 
+                already been assigned but another is still needed (say to 
+                compensate for another litter that produced no males), setting 
+                override = Falsewill result in an error due to request 
+                constraints, but override = True will successfully assign all 
+                IDs provided by rats_to_assign, regardless of constraints. Using 
+                override = False is a good strategy for assigning breeders 
+                ad-hoc to replace original assignments that may be dead or 
+                missing, while ensuring desired constraints are still observed.
+        '''
 
         if isinstance(rfids_to_assign, list):
             pass
@@ -303,7 +336,29 @@ class HSWBreeders(Request):
 
 
     def is_satisfied_hsw_breeders(self, sex=None, family=None):
+        '''
+        Test whether a breeders request has been fulfilled (all assignments to 
+        the request have been satisfied).
 
+        Any combination of sexes and family IDs can be used. Whichever 
+        parameters are set, the funciton will test whether the total number of 
+        rats meeting those criteria have been successfully assigned to the 
+        request. 
+
+        For example, Request.is_satisfied() tests if all assignments (both sexes
+        from all breeder pairs) have been completed for the request. 
+        Request.is_satisfied(sex = 'M', family = 24) tests if a male from
+        breederpair #24 has been assigned.
+        
+        Args:
+            sex: Optional sex filter (M/F).
+            family: Optional breederpair filter.
+            
+        Returns:
+            Boolean indicating if request is satisfied for the criteria input
+            into the function.
+        '''
+ 
         all_fams = self.colony_df['breederpair'].unique()
         fams_with_males = self.colony_df.groupby('breederpair').\
             filter(lambda df: 'M' in df['sex'].values)
@@ -381,7 +436,14 @@ class HSWBreeders(Request):
         return(n_remaining == 0)
 
     def count_leftovers(self):
-
+        '''
+        Count if any individuals remain to be assigned to fulfill the total 
+        number of requested breeders. If rats of a given sex have been assigned
+        from all available breeder pairs, but the total count of requested rats 
+        remains unfulfilled, returns a message counting the number of rats per 
+        sex that remain to be assigned. These remainders will need to be filled
+        manually using assign_manual_hsw_breeders().
+        '''
             n_remaining = self.n_remaining['n_remaining_total']
             n_assigned_males = len(self.assigned_males)
             n_assigned_females = len(self.assigned_females)
@@ -434,6 +496,13 @@ class HSWBreeders(Request):
     # property to track rats that have been assigned to the project
     @property
     def assigned_rats(self):
+        '''
+        Get all rats assigned to HSW breeders.
+        
+        Returns:
+            A dictionary with RFIDs of assigned rats, grouped by sex.
+        '''
+
         assigned_males = self.assigned_males
         assigned_females = self.assigned_females
         assigned_total = assigned_males | assigned_females
@@ -446,6 +515,15 @@ class HSWBreeders(Request):
     # to sample for assignment
     @property
     def assigned_breederpairs(self):
+        '''
+        Get all breederpairs that have contributed rats to HSW breeders.
+        
+        Returns:
+            A dictionary with breederpair IDs of pairs with offspring that have
+            been assigned as new breeders, grouped by sex. The male list 
+            returns families that have contributed male breeders, the female 
+            list returns families that have contributed female breeders.
+        '''
 
         # update trait metadata to include only breederpairs that are currently 
         # available for assignment
@@ -491,6 +569,17 @@ class HSWBreeders(Request):
     # to sample for assignment
     @property
     def available_breederpairs(self):
+        '''
+        Get all breederpairs from which HSW breeders can be, but have not yet 
+        been assigned.
+        
+        Returns:
+            A dictionary with breederpair IDs for pairs with offspring that are 
+            still available for assignment as new breeders, grouped by sex. The 
+            male list returns families from which male breeders are still needed, 
+            the female list returns families from which female breeders are 
+            still needed.
+        '''
 
         assigned_fams_m = list(self.assigned_breederpairs\
             ['assigned_fams_m'].keys())
@@ -529,6 +618,16 @@ class HSWBreeders(Request):
     # currently excluded from assignment
     @property
     def unavail_male_sibs(self):
+        '''
+        Get RFIDs for non-assigned male rats that are not eligible for 
+        assignment as breeders. Males are excluded from eligibility as breeders 
+        once a male sibling has been assigned as a breeder.
+        
+        Returns:
+            A dictionary with RFIDs of male rats that are available for 
+            assignment, but are not eligible for assignment as breeders.
+        '''
+
         assigned_m_fams = \
             list(self.assigned_breederpairs['assigned_fams_m'].keys())
         m_metadata = self.trait_metadata[self.trait_metadata['sex']=='M']
@@ -548,6 +647,16 @@ class HSWBreeders(Request):
     # currently excluded from assignment
     @property
     def unavail_female_sibs(self):
+        '''
+        Get RFIDs for non-assigned female rats that are not eligible for 
+        assignment as breeders. Females are excluded from eligibility as breeders 
+        once a female sibling has been assigned as a breeder.
+        
+        Returns:
+            A dictionary with RFIDs of female rats that are available for 
+            assignment, but are not eligible for assignment as breeders.
+        '''
+
         assigned_f_fams = \
             list(self.assigned_breederpairs['assigned_fams_f'].keys())
         f_metadata = self.trait_metadata[self.trait_metadata['sex']=='F']
@@ -566,6 +675,15 @@ class HSWBreeders(Request):
     # property to track all males currently available for assignment
     @property
     def available_males(self):
+        '''
+        Get RFIDs for all male rats that are currently eligible for 
+        assignment as breeders.
+        
+        Returns:
+            A dictionary with RFIDs of male rats that are available and 
+            eligbible for assignment as breeders.
+        '''
+
         assigned_m_fams = \
             list(self.assigned_breederpairs['assigned_fams_m'].keys())
         m_metadata = self.trait_metadata[self.trait_metadata['sex']=='M']
@@ -584,6 +702,15 @@ class HSWBreeders(Request):
     # property to track all females currently available for assignment
     @property
     def available_females(self):
+        '''
+        Get RFIDs for all female rats that are currently eligible for 
+        assignment as breeders.
+        
+        Returns:
+            A dictionary with RFIDs of female rats that are available and 
+            eligbible for assignment as breeders.
+        '''
+
         assigned_f_fams = \
             list(self.assigned_breederpairs['assigned_fams_f'].keys())
         f_metadata = self.trait_metadata[self.trait_metadata['sex']=='F']
@@ -602,11 +729,27 @@ class HSWBreeders(Request):
     # property to track all rats currently available for assignment
     @property
     def available_rats(self):
+        '''
+        Get RFIDs for all rats that are currently eligible for 
+        assignment as breeders.
+        
+        Returns:
+            A dictionary with RFIDs of male and female rats that are available 
+            and eligbible for assignment as breeders.
+        '''
+
         return self.available_males | self.available_females
 
    # counters to track the number of assigned rats
     @property
     def n_assigned(self):
+        '''
+        Count the number of rats currently assigned to the request.
+        
+        Returns:
+            A dictionary counts of assigned rats, grouped by sex.
+        '''
+
         n_assigned_males = len(self.assigned_rats['assigned_males'])
         n_assigned_females = len(self.assigned_rats['assigned_females'])
         n_assigned_total = len(self.assigned_rats['assigned_total'])
@@ -620,6 +763,13 @@ class HSWBreeders(Request):
     # counters to track the number of assignments remaining
     @property
     def n_remaining(self):
+        '''
+        Count the number of rats that currently remain to be assigned to the 
+        request.
+        
+        Returns:
+            A dictionary counts of remaining assignments, grouped by sex.
+        '''
 
         n_remaining_males = self.n_requested_males - \
             self.n_assigned['n_assigned_males']

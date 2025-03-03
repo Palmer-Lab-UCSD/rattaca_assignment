@@ -5,7 +5,7 @@ RATTACA request class for assignment based on genetic predictions.
 import json
 import numpy as np
 import pandas as pd
-from rattaca.models.request import Request
+from rattaca_assign.models.request import Request
 
 
 class RATTACA(Request):
@@ -62,6 +62,7 @@ class RATTACA(Request):
         Args:
             rfids_to_assign: A list of desired RFIDs to be assigned to the project            
         '''
+        
         if not isinstance(rfids_to_assign, list):
             raise TypeError('rfids_to_assign must be a list')
         

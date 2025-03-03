@@ -166,7 +166,6 @@ Example json file for HSW breeders. Assignment type, project name, and trait nam
 }
 ```
 
-
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
