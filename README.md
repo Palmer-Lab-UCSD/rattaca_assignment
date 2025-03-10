@@ -103,13 +103,16 @@ python -m unittest discover
 2. Random requests - Assignments made semi-randomly, usually within some constraints (such as a limit on the number of siblings allowed from a given family)
 3. HSW Breeder requests - Assignments to the breeder pool at the HS West colony.
 
-Example json file for a RATTACA project requesting 10 male and 10 female rats with high or low predictions for the hypothetical trait "anxiety_score". The trait name corresponds to a column in `predictions.csv`:
+Example json file for a RATTACA project requesting 10 male and 10 female rats with high or low predictions for the hypothetical trait "anxiety_score". The trait name corresponds to a column in `predictions.csv`. `min_age` and `max_age` are set to constrain the desired age range for the project, and `receive_date` sets the specific date (in YYYMMDD format) on which the age restrictions apply:
 
 ```json
 {
   "assignment_type": "rattaca",
   "project": "AnxietyProject",
   "trait": "anxiety_score",
+  "min_age": 40,
+  "max_age": 50,
+  "receive_date": 20250101,
   "n_rats": {
     "total": 20,
     "male": {
@@ -126,7 +129,7 @@ Example json file for a RATTACA project requesting 10 male and 10 female rats wi
 }
 ```
 
-Example json file for a "random" request. Here, trait names are arbitrary. However, a given project may with to distinguish between randomly-assigned experimental and control groups, in which case two files should be made the the same project name but different trait names (and relevant request numbers per group). Here, this example will allow no same-sex siblings to be drawn from the same litter:
+Example json file for a "random" request. Here, trait names are arbitrary. However, a given project may with to distinguish between randomly-assigned experimental and control groups, in which case two files should be made the the same project name but different trait names (and relevant request numbers per group). Here, this example will allow no same-sex siblings to be drawn from the same litter. Note that age restrictions and the receipt date are all null, meaning no restrictions are set:
 ```json
 {
   "assignment_type": "random",
@@ -134,6 +137,9 @@ Example json file for a "random" request. Here, trait names are arbitrary. Howev
   "trait": "control_group",
   "max_males_per_fam" : 1,
   "max_females_per_fam" : 1,
+  "min_age": null,
+  "max_age": null,
+  "receive_date": null,
   "n_rats": {
     "total": 16,
     "male": {
@@ -154,6 +160,9 @@ Example json file for HSW breeders. Assignment type, project name, and trait nam
   "trait": "hsw_breeders",
   "max_males_per_fam" : 1,
   "max_females_per_fam" : 1,
+  "min_age": null,
+  "max_age": null,
+  "receive_date": null,
   "n_rats": {
     "total": 140,
     "male": {

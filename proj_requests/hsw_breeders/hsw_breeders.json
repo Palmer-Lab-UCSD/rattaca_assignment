@@ -2,6 +2,9 @@
     "project" : "hsw_breeders",
     "trait" : "hsw_breeders",
     "assignment_type" : "hsw_breeders",
+    "min_age": 0,
+    "max_age": 0,
+    "receive_date": null,
     "n_rats": {
         "total" : 140,
         "male" : {
