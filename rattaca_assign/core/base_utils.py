@@ -1,36 +1,9 @@
 """
-Utility functions for RATTACA assignment.
+Basic utility functions that don't depend on request model classes.
 """
 
-import json
 import pandas as pd
-from rattaca_assign.models.request_rattaca import RATTACA
-from rattaca_assign.models.request_random import RandProj
-from rattaca_assign.models.request_breeders import HSWBreeders
 
-
-# function to list which types of requests have been made
-def which_requests(args):
-    '''
-    List which types of requests have been made.
-    
-    Args:
-        args.requests: Command line arguments containing paths to 
-        request files.
-        
-    Returns:
-        A list of unique request types found in the request files.
-'''
-    which_types = []
-    for proj_request in args.requests:
-        request = Request(proj_request, args)
-        req_type = request.assignment_type
-        which_types.append(req_type)
-    return(list(set(which_types)))  
-
-
-
-# function to clean up and format the colony dataframe
 def prep_colony_df(args):
     '''
     Drops unusable samples from the colony dataframe.
@@ -74,7 +47,7 @@ def prep_colony_df(args):
     df[~df['rfid'].isnull()]
     
     # identify dead rats
-    dead_strs = ['dead', 'die', 'death', 'euth', 'eauth', 'kill']
+    dead_strs = ['dead', 'die', 'death', 'euth', 'eauth', 'kill', 'starve']
     dead_search = '|'.join(dead_strs)
     dead_rats = df[df['comments']\
         .str.contains(dead_search, case=False, na=False)]['rfid'].tolist()
@@ -83,8 +56,15 @@ def prep_colony_df(args):
     ambig_sex = df[df['comments']\
         .str.contains('unsure sex', case=False, na=False)]['rfid'].tolist()
     
-    # drop dead rats, rats w/ unknown sex
-    drop_rats = dead_rats + ambig_sex
+    # identify flooded cages
+    flood_strs = ['flood', 'drown']
+    flood_search = '|'.join(flood_strs)
+    flooded_fams = df[df['comments']\
+        .str.contains(flood_search, case=False, na=False)]['breederpair'].tolist()
+    flooded_rats = df[df['breederpair'].isin(flooded_fams)]['rfid'].tolist()
+    
+    # drop dead rats, rats w/ unknown sex, rats from flooded cages
+    drop_rats = dead_rats + ambig_sex + flooded_rats
     df = df[~df['rfid'].isin(drop_rats)]
 
     # identify rats that have been genotyped
@@ -93,7 +73,7 @@ def prep_colony_df(args):
     return(df)
 
 
-# function to assign breeders a priori
+# Move prioritize_breeders without model dependencies
 def prioritize_breeders(args):
     '''
     Assigns singleton offspring to HSW breeders by priority 
@@ -133,40 +113,3 @@ def prioritize_breeders(args):
         
     breeders = m_breeders + f_breeders
     return(breeders)
-
-def load_request_files(args):
-    """
-    Load request objects from JSON files.
-    
-    Args:
-        args.requests: Command line arguments containing request files.
-        
-    Returns:
-        A dictionary with separate lists of request objects for each 
-        request type.
-    """
-    rattaca_requests = []
-    random_requests = []
-    breeder_requests = []
-    
-    for proj_request in args.requests:
-        with open(proj_request, 'r') as rf:
-            req_metadata = json.load(rf)
-            req_type = req_metadata['assignment_type']
-            
-            if req_type == 'rattaca':
-                request = RATTACA(proj_request, args)
-                rattaca_requests.append(request)
-            elif req_type == 'random':
-                request = RandProj(proj_request, args)
-                random_requests.append(request)
-            elif req_type == 'hsw_breeders':
-                request = HSWBreeders(proj_request, args)
-                breeder_requests.append(request)
-    
-    return {
-        'rattaca': rattaca_requests,
-        'random': random_requests,
-        'hsw_breeders': breeder_requests
-    }
-

@@ -7,7 +7,7 @@ different projects based on their genetic predictions and other criteria.
 
 import pandas as pd
 from itertools import permutations
-from rattaca_assign.core.utils import prioritize_breeders, load_request_objects, which_requests
+from rattaca_assign.core.model_utils import load_request_files, which_requests
 
 
 def run_assignments(args):
@@ -134,7 +134,7 @@ def permute_assignment(all_requests):
     return assignment_results
 
 
-def output_assignment_results(assignment_results, output_path=None):
+def output_assignment_results(assignment_results, output_prefix=None):
     '''
     Output assignment results to CSV files.
     
@@ -157,13 +157,18 @@ def output_assignment_results(assignment_results, output_path=None):
     df = pd.DataFrame(all_assignments)
     
     # write all assignments to file
-    if output_path:
-        df.to_csv(f'{output_path}/all_assignments.csv', index=False)
+    if output_prefix:
+        assignments_file = f'{output_prefix}_all_assignments.csv'
+        df.to_csv(assignments_file, index=False)
         
         # create per-project files
+        print(f'\n')
         for project in df['project'].unique():
             project_df = df[df['project'] == project]
-            project_df.to_csv(f'{output_path}/{project}_assignments.csv', \
-                index=False)
+            project_file = f'{output_prefix}_{project}_assignments.csv'
+            project_df.to_csv(project_file, index=False)
+            print(f'{project} assignments saved to {project_file}')
+        
+        print(f'All assignments saved to {output_prefix}_all_assignments.csv \n')
     
     return df
