@@ -2,13 +2,13 @@
 '''
 Command-line interface for RATTACA assignment tool.
 
-Usage: rattaca -c colony_dataframe.csv -p predictions.csv -o /output/path/output_prefix -r request1.json request2.json...
+Usage: rattaca_assign -c colony_dataframe.csv -p predictions.csv -o /output/path/output_prefix -r request1.json request2.json...
 '''
 
 import argparse
 import sys
 from rattaca_assign.core.assign import run_assignments
-from rattaca_assign.core.utils import which_requests
+from rattaca_assign.core.model_utils import which_requests
 
 
 def parse_args(args=None):
@@ -26,7 +26,7 @@ def parse_args(args=None):
             
     parser.add_argument('-o', '--output_prefix', 
         required=False, type=str, nargs=1, 
-        dest='outfile_prefix', help='<output file prefix>')
+        dest='output_prefix', help='<output file prefix: /desired/path/plus_file_prefix>')
     parser.add_argument('-c', '--colony_df', 
         required=True, type=str, nargs=1, 
         dest='colony_dataframe', help='<HS West colony dataframe csv>')
@@ -41,31 +41,3 @@ def parse_args(args=None):
         dest='exclude', help='RFIDs in colony data to exclude from assignment')
 
     return parser.parse_args(args)
-
-
-def main(args=None):
-    '''Main entry point for the RATTACA tool.'''
-
-    # parse command line arguments
-    args = parse_args(args)
-
-    print('\n----------------------------')
-    print('---- RATTACA Assignment ----')
-    print('---------------------------- \n')
-
-    print(f'Request files: {', '.join(args.requests)}')
-    print(f'Colony dataframe: {args.colony_dataframe[0]}')
-    if args.predictions:
-        print(f'Predictions file: {args.predictions[0]}')
-    
-    # identify which types of requests are being processed
-    request_types = which_requests(args)
-    
-    # run the assignment algorithm
-    run_assignments(args)
-    
-    print('RATTACA assignment complete!')
-
-
-if __name__ == '__main__':
-    main()
