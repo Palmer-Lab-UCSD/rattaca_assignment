@@ -4,8 +4,8 @@
     "assignment_type" : "random",
     "max_males_per_fam" : 1,
     "max_females_per_fam" : 1,
-    "min_age": 0,
-    "max_age": 0,
+    "min_age": null,
+    "max_age": null,
     "receive_date": null,
     "n_rats": {
         "total" : 96,

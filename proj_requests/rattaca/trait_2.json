@@ -2,8 +2,8 @@
     "project" : "proj_2",
     "trait" : "trait_2",
     "assignment_type" : "rattaca",
-    "min_age": 0,
-    "max_age": 0,
+    "min_age": null,
+    "max_age": null,
     "receive_date": null,
     "n_rats" : {
         "total" : 20,
