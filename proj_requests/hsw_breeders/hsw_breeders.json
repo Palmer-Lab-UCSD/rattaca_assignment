@@ -1,5 +1,7 @@
 {
-    "project" : "hsw_breeders",
+    "project" : "hs_west_colony",
+    "request_name": "hsw_gen100_colony",
+    "assignment_name": "hsw_breeders",
     "trait" : "hsw_breeders",
     "assignment_type" : "hsw_breeders",
     "min_age": null,

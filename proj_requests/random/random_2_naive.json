@@ -1,5 +1,7 @@
 {
     "project" : "random_2",
+    "request_name": "rand_request_1",
+    "assignment_name": "rand_2_trait_exp",
     "trait" : "random_2_naive",
     "assignment_type" : "random",
     "max_males_per_fam" : 9999,

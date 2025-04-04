@@ -1,5 +1,7 @@
 {
     "project" : "proj_1",
+    "request_name": "request_1",
+    "assignment_name": "request_1_trait_1",
     "trait" : "trait_1", 
     "assignment_type" : "rattaca",
     "min_age": null,
