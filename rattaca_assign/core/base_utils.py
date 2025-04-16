@@ -73,7 +73,6 @@ def prep_colony_df(args):
     return(df)
 
 
-# Move prioritize_breeders without model dependencies
 def prioritize_breeders(args):
     '''
     Assigns singleton offspring to HSW breeders by priority 
@@ -97,19 +96,21 @@ def prioritize_breeders(args):
     for pair in df['breederpair'].unique():
 
         litter_males = \
-            df[(df['breederpair'] == pair) & (df['sex'] == 'M')]['rfid']
+            df[(df['breederpair'] == pair) & \
+                (df['sex'] == 'M')]['rfid'].tolist()
         litter_females = \
-            df[(df['breederpair'] == pair) & (df['sex'] == 'F')]['rfid']
+            df[(df['breederpair'] == pair) & \
+                (df['sex'] == 'F')]['rfid'].tolist()
         
         # any rat that is the single M or F from its litter 
         # is automatically assigned to HS West breeders
         if len(litter_males) == 1:
-            assign_male = litter_males
+            assign_male = litter_males[0]
             m_breeders.append(assign_male)
         
         if len(litter_females) == 1:
-            assign_female = litter_females
+            assign_female = litter_females[0]
             f_breeders.append(assign_female)
-        
+    
     breeders = m_breeders + f_breeders
     return(breeders)
