@@ -3,7 +3,9 @@ HSWBreeders request class for assigning rats to the HS West colony.
 '''
 
 import json
+from datetime import datetime
 from rattaca_assign.models.request import Request
+from rattaca_assign.core.base_utils import prioritize_breeders
 
 
 ### Request subclass for HS West breeders
@@ -17,13 +19,17 @@ class HSWBreeders(Request):
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
 
-            req_metadat = json.load(rf)
-            self.assignment_type = req_metadat['assignment_type']
-            self.project = req_metadat['project']
-            self.trait = req_metadat['trait']
-            self.n_requested_total = req_metadat['n_rats']['total']
-            self.n_requested_males = req_metadat['n_rats']['male']['total']
-            self.n_requested_females = req_metadat['n_rats']['female']['total']
+            req_metadata = json.load(rf)
+            self.assignment_type = req_metadata['assignment_type']
+            self.project = req_metadata['project']
+            self.trait = req_metadata['trait']
+            self.n_requested_total = req_metadata['n_rats']['total']
+            self.n_requested_males = req_metadata['n_rats']['male']['total']
+            self.n_requested_females = req_metadata['n_rats']['female']['total']
+            self.min_age = req_metadata['min_age']
+            self.max_age = req_metadata['max_age']
+            date_str = str(req_metadata['receive_date']) if req_metadata['receive_date'] is not None else None
+            self.receive_date = datetime.strptime(date_str, "%Y%m%d").date() if date_str is not None else None
 
         # initialize dictionaries to hold assigned rats
         self.assigned_males = {}
@@ -94,54 +100,9 @@ class HSWBreeders(Request):
             list(set(self.available_rfids) - set(unavail_rfids))
 
         # check if any rats are now priority for assignment to breeders
-        new_priority_breeders = self.prioritize_breeders()
+        new_priority_breeders = prioritize_breeders()
 
         return new_priority_breeders
-
-
-    # function to assign breeders a priori
-    def prioritize_breeders(self):
-        '''
-        Assigns singleton offspring to HSW breeders by priority 
-        prior to project assignments.
-        
-        Identifies all rats that are the only M or F from their litter,
-        assigns them automatically to HSW breeders to ensure all breeder
-        pairs have one M and one F represented in the next HSW generation.
-
-        Args:
-            df: The 'trait_metadata' pandas dataframe for HSW breeders
-        
-        Returns:
-            A list of RFIDs that must be assigned to HSW breeders.
-        '''
-
-        # only examine rats that are available for assignment
-        df = self.trait_metadata
-        df = df[df['rfid'].isin(self.available_rfids)]
-        m_breeders = []
-        f_breeders = []
-
-        for pair in df['breederpair'].unique():
-
-            litter_males = df[(df['breederpair'] == pair) \
-                & (df['sex'] == 'M')]['rfid'].tolist()
-            litter_females = df[(df['breederpair'] == pair) \
-                & (df['sex'] == 'F')]['rfid'].tolist()
-            
-            # any rat that is the single M or F from its litter 
-            # is automatically assigned to HS West breeders
-            if len(litter_males) == 1:
-                assign_male = litter_males
-                m_breeders.extend(assign_male)
-            
-            if len(litter_females) == 1:
-                assign_female = litter_females
-                f_breeders.extend(assign_female)
-        
-        breeders = m_breeders + f_breeders
-        return(breeders)
-
 
     def assign_hsw_breeders(self, non_breeder_requests=None, assign_remainder=False):
         '''
@@ -447,53 +408,53 @@ class HSWBreeders(Request):
         sex that remain to be assigned. These remainders will need to be filled
         manually using assign_manual_hsw_breeders().
         '''
-            n_remaining = self.n_remaining['n_remaining_total']
-            n_assigned_males = len(self.assigned_males)
-            n_assigned_females = len(self.assigned_females)
-            n_assigned_total = n_assigned_males + n_assigned_females
-            n_fams_with_males = len(self.fams_with_males)
-            n_fams_with_females = len(self.fams_with_females)
-            n_requested_males = self.n_requested_males
-            n_requested_females = self.n_requested_females
+        n_remaining = self.n_remaining['n_remaining_total']
+        n_assigned_males = len(self.assigned_males)
+        n_assigned_females = len(self.assigned_females)
+        n_assigned_total = n_assigned_males + n_assigned_females
+        n_fams_with_males = len(self.fams_with_males)
+        n_fams_with_females = len(self.fams_with_females)
+        n_requested_males = self.n_requested_males
+        n_requested_females = self.n_requested_females
 
-            out = {'M': self.n_remaining['n_remaining_males'],
-                   'F': self.n_remaining['n_remaining_females'],
-                   'total': n_remaining}
+        out = {'M': self.n_remaining['n_remaining_males'],
+               'F': self.n_remaining['n_remaining_females'],
+               'total': n_remaining}
 
-            # if males and females have been assigned from all available breeder pairs
-            if n_remaining > 0 and \
-                n_assigned_males == n_fams_with_males and \
-                n_assigned_females == n_fams_with_females:
-                
-                m_remainder = n_requested_males - n_assigned_males
-                f_remainder = n_requested_females - n_assigned_females
+        # if males and females have been assigned from all available breeder pairs
+        if n_remaining > 0 and \
+            n_assigned_males == n_fams_with_males and \
+            n_assigned_females == n_fams_with_females:
+            
+            m_remainder = n_requested_males - n_assigned_males
+            f_remainder = n_requested_females - n_assigned_females
 
-                message = (
-                    f'\n\n'
-                    f'########################################################################### \n'
-                    f'########################################################################### \n'
-                    f'\n'
-                    f'#################### HSW BREEDER ASSIGNMENT INCOMPLETE #################### \n'
-                    f'\n'
-                    f'All {n_assigned_total} possible breeder assignments have been made algorithmically: \n'
-                    f'\t {n_assigned_males} males assigned from {n_fams_with_males} available breeder pairs \n'
-                    f'\t {n_assigned_females} females assigned from {n_fams_with_females} available breeder pairs \n'
-                    f'\n'
-                    f'{n_requested_males} male breeders requested, {n_assigned_males} assigned. \n'
-                    f'\t {m_remainder} male siblings must be assigned manually \n'
-                    f'\n'
-                    f'{n_requested_females} female breeders requested. {n_assigned_females} assigned. \n'
-                    f'\t {f_remainder} female siblings must be assigned manually \n.'
-                    f'\n'
-                    f'########################################################################### \n'
-                    f'########################################################################### \n\n'
-                )
-                print(message)
-                out = {'M': m_remainder, 
-                               'F': f_remainder, 
-                               'total': m_remainder + f_remainder}
+            message = (
+                f'\n\n'
+                f'########################################################################### \n'
+                f'########################################################################### \n'
+                f'\n'
+                f'#################### HSW BREEDER ASSIGNMENT INCOMPLETE #################### \n'
+                f'\n'
+                f'All {n_assigned_total} possible breeder assignments have been made algorithmically: \n'
+                f'\t {n_assigned_males} males assigned from {n_fams_with_males} available breeder pairs \n'
+                f'\t {n_assigned_females} females assigned from {n_fams_with_females} available breeder pairs \n'
+                f'\n'
+                f'{n_requested_males} male breeders requested, {n_assigned_males} assigned. \n'
+                f'\t {m_remainder} male siblings must be assigned manually \n'
+                f'\n'
+                f'{n_requested_females} female breeders requested. {n_assigned_females} assigned. \n'
+                f'\t {f_remainder} female siblings must be assigned manually \n.'
+                f'\n'
+                f'########################################################################### \n'
+                f'########################################################################### \n\n'
+            )
+            print(message)
+            out = {'M': m_remainder, 
+                           'F': f_remainder, 
+                           'total': m_remainder + f_remainder}
 
-            return out
+        return out
 
 
     # property to track rats that have been assigned to the project
