@@ -5,6 +5,7 @@ RATTACA request class for assignment based on genetic predictions.
 import json
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from rattaca_assign.models.request import Request
 
 
@@ -24,7 +25,6 @@ class RATTACA(Request):
             request_file: Path to JSON request file with request_type='rattaca'
             args: Command line arguments.
         '''
-        print('Initializing RATTACA request')
 
         # inherit attributes from the parent Request class
         super().__init__(request_file, args)
@@ -40,7 +40,11 @@ class RATTACA(Request):
             self.n_requested_females_low = req_metadata['n_rats']['female']['low']
             self.n_requested_high = self.n_requested_males_high + self.n_requested_females_high
             self.n_requested_low = self.n_requested_males_low + self.n_requested_females_low
-
+            self.min_age = req_metadata['min_age']
+            self.max_age = req_metadata['max_age']
+            date_str = str(req_metadata['receive_date']) if req_metadata['receive_date'] is not None else None
+            self.receive_date = datetime.strptime(date_str, "%Y%m%d").date() if date_str is not None else None
+        
         # initialize dictionaries to hold assigned rats
         self.assigned_males_high = {}
         self.assigned_males_low = {}
@@ -76,7 +80,7 @@ class RATTACA(Request):
             # Get rat information
             rat_data = self.trait_metadata[self.trait_metadata['rfid'] == rfid].iloc[0]
             rat_sex = rat_data['sex']
-            rat_group = rat_data[f'{self.trait}_2group']
+            rat_group = rat_data[f'{self.trait}_group']
             rat_pred = rat_data[self.trait]
             
             # determine assignment destination
@@ -169,11 +173,11 @@ class RATTACA(Request):
         # convert the metadata df to a dictionary with key:RFID and 
         # value:(sex, prediction, group)
         current_metadata = current_metadata.set_index('rfid')[
-            ['sex', self.trait, f'{self.trait}_2group']
+            ['sex', self.trait, f'{self.trait}_group']
         ].to_dict(orient='index')
         
         available_rats = {
-            k: (v['sex'], v[self.trait], v[f'{self.trait}_2group']) 
+            k: (v['sex'], v[self.trait], v[f'{self.trait}_group']) 
             for k, v in current_metadata.items()
         }
         
@@ -337,7 +341,7 @@ class RATTACA(Request):
         ).dropna(subset=self.trait, ignore_index=True)
 
         # add a column of high/low group assignments
-        self.trait_metadata[f'{self.trait}_2group'] = self.trait_groups(self.trait, n_groups=2)
+        self.trait_metadata[f'{self.trait}_group'] = self.trait_groups(self.trait, n_groups=2)
 
         # drop rats from the exclude list
         self.trait_metadata = self.trait_metadata[~self.trait_metadata['rfid'].isin(exclude_rfids)]
@@ -348,9 +352,9 @@ class RATTACA(Request):
         if self.n_requested_females == 0:
             self.trait_metadata = self.trait_metadata[self.trait_metadata['sex'] != 'F']
         if self.n_requested_high == 0:
-            self.trait_metadata = self.trait_metadata[self.trait_metadata[f'{self.trait}_2group'] != 'high']
+            self.trait_metadata = self.trait_metadata[self.trait_metadata[f'{self.trait}_group'] != 'high']
         if self.n_requested_low == 0:
-            self.trait_metadata = self.trait_metadata[self.trait_metadata[f'{self.trait}_2group'] != 'low']
+            self.trait_metadata = self.trait_metadata[self.trait_metadata[f'{self.trait}_group'] != 'low']
 
         # create a list of rats available for assignment, ordered by trait prediction
         self.available_rfids = self.trait_metadata['rfid'].tolist()
@@ -434,11 +438,11 @@ class RATTACA(Request):
         max_rat_data = self.trait_metadata[self.trait_metadata['rfid'] == max_rat].iloc[0]
         
         min_rat_sex = min_rat_data['sex']
-        min_rat_group = min_rat_data[f'{self.trait}_2group']
+        min_rat_group = min_rat_data[f'{self.trait}_group']
         min_rat_pred = min_rat_data[self.trait]
         
         max_rat_sex = max_rat_data['sex']
-        max_rat_group = max_rat_data[f'{self.trait}_2group']
+        max_rat_group = max_rat_data[f'{self.trait}_group']
         max_rat_pred = max_rat_data[self.trait]
         
         # assign the high rat
@@ -481,7 +485,7 @@ class RATTACA(Request):
         if self.is_satisfied_rattaca('M', 'high'):
             high_male_rfids = self.trait_metadata[
                 (self.trait_metadata['sex'] == 'M') & 
-                (self.trait_metadata[f'{self.trait}_2group'] == 'high')
+                (self.trait_metadata[f'{self.trait}_group'] == 'high')
             ]['rfid'].tolist()
             for rfid in high_male_rfids:
                 if rfid in self.available_rfids:
@@ -490,7 +494,7 @@ class RATTACA(Request):
         if self.is_satisfied_rattaca('M', 'low'):
             low_male_rfids = self.trait_metadata[
                 (self.trait_metadata['sex'] == 'M') & 
-                (self.trait_metadata[f'{self.trait}_2group'] == 'low')
+                (self.trait_metadata[f'{self.trait}_group'] == 'low')
             ]['rfid'].tolist()
             for rfid in low_male_rfids:
                 if rfid in self.available_rfids:
@@ -499,7 +503,7 @@ class RATTACA(Request):
         if self.is_satisfied_rattaca('F', 'high'):
             high_female_rfids = self.trait_metadata[
                 (self.trait_metadata['sex'] == 'F') & 
-                (self.trait_metadata[f'{self.trait}_2group'] == 'high')
+                (self.trait_metadata[f'{self.trait}_group'] == 'high')
             ]['rfid'].tolist()
             for rfid in high_female_rfids:
                 if rfid in self.available_rfids:
@@ -508,7 +512,7 @@ class RATTACA(Request):
         if self.is_satisfied_rattaca('F', 'low'):
             low_female_rfids = self.trait_metadata[
                 (self.trait_metadata['sex'] == 'F') & 
-                (self.trait_metadata[f'{self.trait}_2group'] == 'low')
+                (self.trait_metadata[f'{self.trait}_group'] == 'low')
             ]['rfid'].tolist()
             for rfid in low_female_rfids:
                 if rfid in self.available_rfids:
