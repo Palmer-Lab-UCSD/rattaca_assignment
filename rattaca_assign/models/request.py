@@ -1,6 +1,7 @@
 import json
 import pandas as pd
-from rattaca_assign.utils import prep_colony_df
+from datetime import datetime, timedelta
+from rattaca_assign.core.base_utils import prep_colony_df
 
 ### Request parent class
 class Request:
@@ -10,14 +11,19 @@ class Request:
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
 
-            req_metadat = json.load(rf)
-            self.assignment_type = req_metadat['assignment_type']
-            self.project = req_metadat['project']
-            self.trait = req_metadat['trait']
-            print(f'Project: {self.project}, trait: {self.trait}') # debug message - delete later
-            self.n_requested_total = req_metadat['n_rats']['total']
-            self.n_requested_males = req_metadat['n_rats']['male']['total']
-            self.n_requested_females = req_metadat['n_rats']['female']['total']
+            req_metadata = json.load(rf)
+            self.assignment_type = req_metadata['assignment_type']
+            self.project = req_metadata['project']
+            self.request_name = req_metadata['request_name']
+            self.assignment_name = req_metadata['assignment_name']
+            self.trait = req_metadata['trait']
+            self.n_requested_total = req_metadata['n_rats']['total']
+            self.n_requested_males = req_metadata['n_rats']['male']['total']
+            self.n_requested_females = req_metadata['n_rats']['female']['total']
+            self.min_age = req_metadata['min_age']
+            self.max_age = req_metadata['max_age']
+            date_str = str(req_metadata['receive_date']) if req_metadata['receive_date'] is not None else None
+            self.receive_date = datetime.strptime(date_str, '%Y%m%d').date() if date_str is not None else None
                 
         # read in colony data 
         self.colony_df = prep_colony_df(args)
@@ -29,8 +35,27 @@ class Request:
         # create a list of rats available for assignment, ordered by trait prediction
         self.available_rfids = self.trait_metadata['rfid'].tolist()
 
+        # if only one sex is being requested, remove the opposite sex from availability
+        all_males = set(self.trait_metadata[self.trait_metadata['sex'] == 'M']['rfid'].tolist())
+        all_females = set(self.trait_metadata[self.trait_metadata['sex'] == 'F']['rfid'].tolist())
+        if self.n_requested_males == 0:
+            self.available_rfids = [rfid for rfid in self.available_rfids if rfid not in all_males]
+        if self.n_requested_females == 0:
+            self.available_rfids = [rfid for rfid in self.available_rfids if rfid not in all_females]
 
-    # function to remove assigned rats from the list of available rats
+        # remove rats from availability that do not meet age restrictions
+        if self.receive_date is not None:
+            rats_to_remove = []
+            for rat in self.available_rfids:
+                rat_dob = self.trait_metadata[self.trait_metadata['rfid'] == rat]['dob'].iloc[0]
+                rat_dob = datetime.strptime(rat_dob, '%Y-%m-%d').date()
+                t_delta = self.receive_date - rat_dob
+                shipment_age = t_delta.days
+                if shipment_age < self.min_age or shipment_age > self.max_age:
+                    rats_to_remove.append(rat)
+            for rat in rats_to_remove:
+                self.available_rfids.remove(rat)
+
     def remove(self, rats_to_remove, remaining_requests = None):
         '''
         Remove assigned rats from the list of available rats
@@ -60,7 +85,7 @@ class Request:
             self.update_breeders(non_breeder_requests = remaining_requests)
 
     # generic function to assign rats to a project, remove them from availability
-    def assign(self, rats_to_assign=None, remaining_requests=None, fill_request=None):
+    def assign(self, rats_to_assign=None, remaining_requests=None, fill_request=False):
         '''
         Algorithmically assign RFIDs to a request.
 
@@ -72,9 +97,9 @@ class Request:
                 to the request
             remaining_requests (optional): a list of request objects whose 
                 assignment has not yet been completed
-            fill_request (optional): a boolean indicating whether to immediately 
-                complete all assignments to the request (without permuting 
-                assignments to other requests)
+            assign_remainder (optional): a boolean indicating whether to 
+                immediately complete all assignments to the request (without 
+                permuting assignments to other requests)
         '''
 
         if self.assignment_type == 'rattaca':
@@ -82,7 +107,8 @@ class Request:
         elif self.assignment_type == 'random':
             return self.assign_random(rats_to_assign)
         elif self.assignment_type == 'hsw_breeders':
-            return self.assign_hsw_breeders(non_breeder_requests=remaining_requests, fill_request=fill_request)
+            return self.assign_hsw_breeders(non_breeder_requests=remaining_requests, 
+                assign_remainder=fill_request)
         else:
             raise NameError('Assignment type must be either "rattaca", \
                             "hsw_breeders", or "random". Please check the .json \
@@ -159,7 +185,7 @@ class Request:
         if self.assignment_type == 'rattaca':
             return self.is_satisfied_rattaca(sex, group)
         elif self.assignment_type == 'random':
-            return self.is_satisfied_random(sex, family)
+            return self.is_satisfied_random(sex)
         elif self.assignment_type == 'hsw_breeders':
             return self.is_satisfied_hsw_breeders(sex, family)
         else:
