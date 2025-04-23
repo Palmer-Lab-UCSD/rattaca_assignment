@@ -72,45 +72,45 @@ def prep_colony_df(args):
 
     return(df)
 
-
-def prioritize_breeders(args):
-    '''
-    Assigns singleton offspring to HSW breeders by priority 
-    prior to project assignments.
+# probably drop: superceded by model_utils.prioritize_breeders()
+# def prioritize_breeders(args):
+#     '''
+#     Assigns singleton offspring to HSW breeders by priority 
+#     prior to project assignments.
     
-    Identifies all rats that are the only M or F from their litter,
-    assigns them automatically to HSW breeders to ensure all breeder
-    pairs have one M and one F represented in the next HSW generation.
+#     Identifies all rats that are the only M or F from their litter,
+#     assigns them automatically to HSW breeders to ensure all breeder
+#     pairs have one M and one F represented in the next HSW generation.
 
-    Args:
-        args.colony_dataframe: The path to the colony dataframe (csv).
+#     Args:
+#         args.colony_dataframe: The path to the colony dataframe (csv).
     
-    Returns:
-        A list of RFIDs that must be assigned to HSW breeders.
-    '''
+#     Returns:
+#         A list of RFIDs that must be assigned to HSW breeders.
+#     '''
     
-    df = prep_colony_df(args)
-    m_breeders = []
-    f_breeders = []
+#     df = prep_colony_df(args)
+#     m_breeders = []
+#     f_breeders = []
 
-    for pair in df['breederpair'].unique():
+#     for pair in df['breederpair'].unique():
 
-        litter_males = \
-            df[(df['breederpair'] == pair) & \
-                (df['sex'] == 'M')]['rfid'].tolist()
-        litter_females = \
-            df[(df['breederpair'] == pair) & \
-                (df['sex'] == 'F')]['rfid'].tolist()
+#         litter_males = \
+#             df[(df['breederpair'] == pair) & \
+#                 (df['sex'] == 'M')]['rfid'].tolist()
+#         litter_females = \
+#             df[(df['breederpair'] == pair) & \
+#                 (df['sex'] == 'F')]['rfid'].tolist()
         
-        # any rat that is the single M or F from its litter 
-        # is automatically assigned to HS West breeders
-        if len(litter_males) == 1:
-            assign_male = litter_males[0]
-            m_breeders.append(assign_male)
+#         # any rat that is the single M or F from its litter 
+#         # is automatically assigned to HS West breeders
+#         if len(litter_males) == 1:
+#             assign_male = litter_males[0]
+#             m_breeders.append(assign_male)
         
-        if len(litter_females) == 1:
-            assign_female = litter_females[0]
-            f_breeders.append(assign_female)
+#         if len(litter_females) == 1:
+#             assign_female = litter_females[0]
+#             f_breeders.append(assign_female)
     
-    breeders = m_breeders + f_breeders
-    return(breeders)
+#     breeders = m_breeders + f_breeders
+#     return(breeders)
