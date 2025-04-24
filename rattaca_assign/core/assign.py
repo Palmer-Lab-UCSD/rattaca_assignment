@@ -8,9 +8,7 @@ different projects based on their genetic predictions and other criteria.
 import pandas as pd
 from random import choice
 from itertools import permutations
-from rattaca_assign.core.base_utils import prioritize_breeders
-from rattaca_assign.core.model_utils import load_request_files, which_requests
-
+from rattaca_assign.core.model_utils import * 
 
 def run_assignments(args):
     '''
@@ -25,53 +23,87 @@ def run_assignments(args):
     Returns:
         A dictionary mapping projects to assigned RFIDs.
     '''
-
     # get request types
     requests_made = which_requests(args)
     
-    # load request objects
-    request_objects = load_request_files(args)
-    rattaca_requests = request_objects['rattaca']
-    random_requests = request_objects['random']
-    breeder_requests = request_objects['hsw_breeders']
-    
-    # STAGE 1: priority assignment to HSW breeders
+    # identify which types of requests have been made
     breeders_requested = 'hsw_breeders' in requests_made
-    if breeders_requested:
-        priority_breeders = prioritize_breeders(args)
+    rattaca_requested = 'rattaca' in requests_made
+    random_requested = 'random' in requests_made
+
+    # load and group request objects
+    request_objects = load_request_files(args)
+    
+    # Get request objects by type
+    rattaca_requests = request_objects['rattaca'] if rattaca_requested else []
+    random_requests = request_objects['random'] if random_requested else []
+    breeder_request = request_objects['hsw_breeders'][0] if breeders_requested and request_objects.get('hsw_breeders') else None
+    
+    # Initialize collections
+    all_requests = []
+    non_breeder_requests = []
+    non_rattaca_requests = []
+    
+    # Add breeder request if it exists
+    if breeders_requested and breeder_request:
+        all_requests.append(breeder_request)
+        
+    # Add RATTACA requests
+    if rattaca_requested and rattaca_requests:
+        all_requests.extend(rattaca_requests)
+        non_breeder_requests.extend(rattaca_requests)
+        
+    # Add random requests
+    if random_requested and random_requests:
+        all_requests.extend(random_requests)
+        non_breeder_requests.extend(random_requests)
+        non_rattaca_requests.extend(random_requests)
+
+    # STAGE 1: priority assignment to HSW breeders
+    if breeders_requested and breeder_request:
+        priority_breeders = prioritize_breeders(
+            breeder_request=breeder_request,
+            non_breeder_requests=non_breeder_requests
+        )
         print(f'priority_breeders: {priority_breeders}')
 
         # assign breeders by priority
-        for request in breeder_requests:
-            request.assign_manual_hsw_breeders(priority_breeders)
+        breeder_request.assign_hsw_breeders(
+            priority_breeders,
+            non_breeder_requests=non_breeder_requests)
         
         # remove assigned breeders from availability for other projects
-        for request in rattaca_requests + random_requests:
+        for request in non_breeder_requests:
             request.remove(priority_breeders)
     
     # STAGE 2: RATTACA assignments
-    if rattaca_requests:
+    if rattaca_requested and rattaca_requests:
         # continue assigning RATTACA rats until all RATTACA requests are satisfied
-        rattaca_assignment(rattaca_requests, breeder_requests)
+        rattaca_assignment(
+            rattaca_requests=rattaca_requests, 
+            non_rattaca_requests=non_rattaca_requests)  # Fixed the syntax error here
     
     # STAGE 3: Complete breeder assignments after RATTACA
-    if breeders_requested:
-        for request in breeder_requests:
-            if not request.is_satisfied():
-                # Find any new priority breeders after RATTACA assignments
-                new_priority_breeders = breeder_req.prioritize_breeders(args)
-                if new_priority_breeders:
-                    breeder_req.assign_manual_hsw_breeders(new_priority_breeders)
-                    # Remove from random projects
-                    for request in random_requests:
-                        request.remove(new_priority_breeders)
-                
-                # For families that have contributed to RATTACA, ensure a male and female 
-                # from each family goes to breeding if available
-                complete_breeding_assignments(breeder_req)
+    if breeders_requested and breeder_request:
+        breeder_requests = [breeder_request]  # Create a list for consistency with the rest of the code
+        if not breeder_request.is_satisfied():
+            # Find any new priority breeders after RATTACA assignments
+            new_priority_breeders = prioritize_breeders(
+                breeder_request=breeder_request,
+                non_breeder_requests=non_breeder_requests
+            )
+            if new_priority_breeders:
+                breeder_request.assign_manual_hsw_breeders(new_priority_breeders)
+                # Remove from random projects
+                for request in random_requests:
+                    request.remove(new_priority_breeders)
+            
+            # For families that have contributed to RATTACA, ensure a male and female 
+            # from each family goes to breeding if available
+            # complete_breeding_assignments(breeder_request) - defunct function, fix this section
     
     # STAGE 4: Only now assign to random projects
-    if random_requests:
+    if random_requested and random_requests:
         # At this point, all RATTACA and priority breeder assignments are complete
         # Random projects get what's left
         for random_req in random_requests:
@@ -79,7 +111,16 @@ def run_assignments(args):
             # contributed to RATTACA or breeders when possible
             assign_to_random_projects(random_req, rattaca_requests, breeder_requests)
     
-    return rattaca_requests + breeder_requests + random_requests
+    # return all request objects for output processing
+    result_requests = []
+    if rattaca_requested and rattaca_requests:
+        result_requests.extend(rattaca_requests)
+    if breeders_requested and breeder_request:
+        result_requests.append(breeder_request)
+    if random_requested and random_requests:
+        result_requests.extend(random_requests)
+    
+    return result_requests
 
 
 def rattaca_assignment(rattaca_requests, non_rattaca_requests = None):
@@ -88,7 +129,9 @@ def rattaca_assignment(rattaca_requests, non_rattaca_requests = None):
     
     Args:
         rattaca_requests: List of RATTACA request objects
-        breeder_requests: List of breeder request objects (for updating)
+        non_rattaca_requests: List of non-RATTACA request objects. Availability
+        for these requests will be automatically updated as RFIDs are assigned 
+        to RATTACA requests.
     '''
 
     assignment_round = 0
@@ -243,53 +286,57 @@ def permute_one_round(open_requests):
     return assigned_this_round
 
 
-def output_assignment_results(assignment_results, args, output_prefix=None):
+def output_assignment_results(args, assigned_requests, output_prefix=None):
     '''
     Output assignment results to CSV files.
     
     Args:
-        assignment_results: a dictionary mapping projects to assigned RFIDs.
+        assigned_requests: List of request objects with assigned rats
         output_prefix: path and file basename prefix to write output files.
+        args: Command line arguments containing colony dataframe path
         
     Returns:
         A dataframe containing all assignment results.
     '''
 
     # read in the colony dataframe
-    # df = pd.read_csv(args.colony_dataframe[0], 
-    #                             dtype = {'rfid': str, 'accessid': int})
+    df = pd.read_csv(args.colony_dataframe[0], 
+                     dtype={'rfid': str, 'accessid': int})
                                 
-    # # combine all results into a single dataframe
-    # all_assignments = []
-    # for project, rfids in assignment_results.items():
-    #     for rfid in rfids:
-    #         all_assignments.append({
-    #             'project': project,
-    #             'rfid': rfid
-    #         })
+    all_assignments = []
     
-    for req in assignment_results:
-        print('req.assigned_rats:')
-        print(list(req.assigned_rats['assigned_total'].keys()))
-
-    # df = pd.DataFrame(all_assignments)
+    # process each request object and extract assigned rats
+    for req in assigned_requests:
+        project_name = req.project
+        
+        # add assigned rats to the results
+        assigned_rfids = list(req.assigned_rats.keys())
+        for rfid in assigned_rfids:
+            all_assignments.append({
+                'project': project_name,
+                'rfid': rfid
+            })
+    
+    # create dataframe from all assignments
+    result_df = pd.DataFrame(all_assignments)
     
     # write all assignments to file
     if output_prefix:
         assignments_file = f'{output_prefix}_all_assignments.csv'
-        df.to_csv(assignments_file, index=False)
+        result_df.to_csv(assignments_file, index=False)
         
         # create per-project files
         print(f'\n')
-        for project in df['project'].unique():
-            project_df = df[df['project'] == project]
+        for project in result_df['project'].unique():
+            project_df = result_df[result_df['project'] == project]
             project_file = f'{output_prefix}_{project}_assignments.csv'
             project_df.to_csv(project_file, index=False)
             print(f'{project} assignments saved to {project_file}')
         
-        print(f'All assignments saved to {output_prefix}_all_assignments.csv \n')
+        print(f'All assignments saved to {assignments_file} \n')
     
-    return df
+    return result_df
+
 
 # UNTESTED
 def permute_random():
