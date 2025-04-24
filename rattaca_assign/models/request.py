@@ -56,35 +56,55 @@ class Request:
             for rat in rats_to_remove:
                 self.available_rfids.remove(rat)
 
-    def remove(self, rats_to_remove, remaining_requests = None):
-        '''
-        Remove assigned rats from the list of available rats
 
-        Args:
-            rats_to_remove: A list or dictionary of RFIDs to remove
-            remaining_requests: A list of requests that still have outstanding 
-                assignments to be filled
+    def remove(self, rfids_to_remove):
         '''
+        Remove RFIDs from eligibility for assignment to a request.
         
-        if isinstance(rats_to_remove, list):
-            rfids_to_remove = rats_to_remove
-        elif isinstance(rats_to_remove, dict):
-            rfids_to_remove = list(rats_to_remove.keys())
+        Args:
+            rfids_to_remove: A list of desired RFIDs to remove from availability.
+        '''
+
+        if isinstance(rfids_to_remove, list):
+            pass
         else:
-            raise TypeError('rats_to_remove must be either a list or a dictionary')
+            raise TypeError('rfids_to_remove must be a list')
 
         for rfid in rfids_to_remove:
-            
             if rfid in self.available_rfids:
                 self.available_rfids.remove(rfid) # python list.remove() method, not RATTACA remove() function 
-        
-        if self.assignment_type == 'random':
-            self.update_randproj(remaining_requests = remaining_requests)
-        
-        if self.assignment_type == 'hsw_breeders':
-            self.update_breeders(non_breeder_requests = remaining_requests)
 
-    # generic function to assign rats to a project, remove them from availability
+    # # generic function to remove rats from eligibility for assignment to a request
+    # def remove(self, rats_to_remove=None):
+    #     '''
+    #     Algorithmically assign RFIDs to a request.
+
+    #     This is a generic function. Depending on the request type, it will call 
+    #     a type-specific function to assign RFIDs.
+        
+    #     args:
+    #         rats_to_assign (optional): a list or dictionary of RFIDs to assign 
+    #             to the request
+    #         remaining_requests (optional): a list of request objects whose 
+    #             assignment has not yet been completed
+    #         assign_remainder (optional): a boolean indicating whether to 
+    #             immediately complete all assignments to the request (without 
+    #             permuting assignments to other requests)
+    #     '''
+
+    #     if self.assignment_type == 'rattaca':
+    #         return self.remove(rats_to_remove)
+    #     elif self.assignment_type == 'random':
+    #         return self.remove_random(rats_to_remove)
+    #     elif self.assignment_type == 'hsw_breeders':
+    #         return self.remove_hsw_breeders(rats_to_remove)
+    #     else:
+    #         raise NameError('Assignment type must be either "rattaca", \
+    #                         "hsw_breeders", or "random". Please check the .json \
+    #                         file for this project request')
+    
+
+    # generic function to assign rats to a request
     def assign(self, rats_to_assign=None, remaining_requests=None, fill_request=False):
         '''
         Algorithmically assign RFIDs to a request.

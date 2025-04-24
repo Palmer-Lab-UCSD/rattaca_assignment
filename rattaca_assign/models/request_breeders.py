@@ -5,7 +5,7 @@ HSWBreeders request class for assigning rats to the HS West colony.
 import json
 from datetime import datetime
 from rattaca_assign.models.request import Request
-from rattaca_assign.core.base_utils import prioritize_breeders
+from rattaca_assign.core.model_utils import prioritize_breeders
 
 
 ### Request subclass for HS West breeders
@@ -56,59 +56,61 @@ class HSWBreeders(Request):
 
         print(f'Initialized HSW breeders request: {self.n_requested_males} M + {self.n_requested_females} F')
 
-    def update_breeders(self, non_breeder_requests):
-        '''
 
-        '''
-        if isinstance(non_breeder_requests, list):
-            pass
-        else:
-            raise TypeError('non_breeder_requests must be a list of Request classes')
-
-        use_requests = [req for req in non_breeder_requests if not req.is_satisfied()]
-        df = self.trait_metadata
-
-        # list all rats that have been assigned to other projects
-        assigned_males = []
-        assigned_females = []
-        for request in use_requests:
-            request_males = \
-                list(request.assigned_rats['assigned_males'].keys())
-            request_females = \
-                list(request.assigned_rats['assigned_females'].keys())
-            assigned_males.extend(request_males)
-            assigned_females.extend(request_females)
-
-        male_breeders = list(self.assigned_males.keys())
-        female_breeders = list(self.assigned_females.keys())
+    # def remove_hsw_breeders(self, rfids_to_remove):
+    #     '''
+    #     Remove RFIDs from eligibility for assignment to HSW breeders.
         
-        filled_breeder_fams_m = self.assigned_breederpairs['assigned_fams_m']
-        filled_fam_rfids_m = [v[1] for v in filled_breeder_fams_m.values()] 
-        filled_breeder_fams_f = self.assigned_breederpairs['assigned_fams_f']
-        filled_fam_rfids_f = [v[1] for v in filled_breeder_fams_f.values()] 
+    #     Args:
+    #         rfids_to_remove: A list of desired RFIDs to remove from availability.
+    #     '''
 
-        # list all rats not available for assignment: 
-        # breeders + breeder siblings + rats assigned to other projects
-        unavail_males = \
-            assigned_males + male_breeders + filled_fam_rfids_m
-        unavail_females = \
-            assigned_females + female_breeders + filled_fam_rfids_f
-        unavail_rfids = unavail_males + unavail_females
+    #     if isinstance(rfids_to_remove, list):
+    #         pass
+    #     else:
+    #         raise TypeError('rfids_to_remove must be a list')
 
-        # update the list of rats available for assignment to breeders
-        self.available_rfids = \
-            list(set(self.available_rfids) - set(unavail_rfids))
+    #     # males_to_remove = {k: v for k, v in self.available_males.items() \
+    #     #     if k in rfids_to_remove}
+    #     # females_to_remove = {k: v for k, v in self.available_females.items() \
+    #     #     if k in rfids_to_remove}
 
-        # check if any rats are now priority for assignment to breeders
-        new_priority_breeders = prioritize_breeders()
+    #     for rfid in rfids_to_remove:
+    #         if rfid in self.available_rfids:
+    #             self.available_rfids.remove(rfid) # python list.remove() method, not RATTACA remove() function 
 
-        return new_priority_breeders
 
-    def assign_hsw_breeders(self, non_breeder_requests=None, assign_remainder=False):
+    def _update_availability_hsw_breeders(self):
+        '''
+        Remove RFIDs from availability based on kinship constraints.
+
+        This function should be run after assigning RFIDs to a breeder request. 
+        Assigned RFIDs are explicitly removed from availability using remove(). 
+        After assignments, siblings of assigned breeders also need to be 
+        excluded from eligibility for assignment. This function identifies 
+        siblings of assigned RFIDs and removes them from further eligibility.
+        '''
+
+        # get all sibling RFIDs to remove
+        unavail_male_sibs = self.unavail_male_sibs
+        unavail_female_sibs = self.unavail_female_sibs
+        siblings_to_remove = list(unavail_male_sibs.keys()) + \
+            list(unavail_female_sibs.keys())
+        
+        # remove siblings from available_rfids
+        if siblings_to_remove:
+            print(f"Removing siblings from availability: {siblings_to_remove}")
+            for rfid in siblings_to_remove:
+                if rfid in self.available_rfids:
+                    self.available_rfids.remove(rfid)
+
+
+    def assign_hsw_breeders(self, rfids_to_assign, non_breeder_requests=None, assign_remainder=False):
         '''
         Assign RFIDs to HSW breeders.
         
         Args:
+            rfids_to_assign: A list of desired RFIDs to be assigned as breeders.
             non_breeder_requests: (optional) A list of all currently open 
                 request objects that are not for HSW breeders. Used to update 
                 remaining requests when breeders are assigned.
@@ -118,10 +120,13 @@ class HSWBreeders(Request):
                 available for assignment to other projects.
         '''
 
-        # assign breeders by priority
-        breeders_to_assign = self.prioritize_breeders()
+        if isinstance(rfids_to_assign, list):
+            pass
+        else:
+            raise TypeError('rfids_to_assign must be a list')
+
         breeders_to_assign = {k: v for k, v in self.available_rats.items() \
-            if k in breeders_to_assign}
+            if k in rfids_to_assign}
         males_to_assign = {k: v for k, v in breeders_to_assign.items() \
             if v[0] == 'M'}
         females_to_assign = {k: v for k, v in breeders_to_assign.items() \
@@ -150,10 +155,11 @@ class HSWBreeders(Request):
                 assign_to[breeder_rfid] = breeders_to_assign[breeder_rfid]
                 successfully_assigned.append(breeder_rfid)
                 # print(f'Assigned {breeder_sex} breeder {breeder_rfid} from pair {breeder_fam} by priority')
-        
-        self.remove(
-            rats_to_remove = successfully_assigned, 
-            remaining_requests = non_breeder_requests)
+                
+        self.remove(rfids_to_remove = successfully_assigned)
+
+        # remove same-sex siblings of assigned breeders from availability
+        self._update_availability_hsw_breeders()
 
         # fill all remaining breeder assignments if desired
         if assign_remainder is True:
@@ -211,9 +217,7 @@ class HSWBreeders(Request):
                 successfully_assigned.append(breeder_rfid)
                 # print(f'Assigned {breeder_sex} breeder: {breeder_rfid} from pair {breeder_fam} to fill remainder')
             
-        self.remove(
-            rats_to_remove = successfully_assigned, 
-            remaining_requests = [])
+        self.remove(rats_to_remove = successfully_assigned)
 
 
     # function to manually assign rats to a projects as needed
@@ -270,7 +274,7 @@ class HSWBreeders(Request):
             # for the current breederpair and sex
             if len(already_assigned_sibs) == 0:
                 assign_to[rfid] = rats_to_assign[rfid]
-                self.remove([rfid], remaining_requests = [])
+                self.remove([rfid])
                 print(f'Manually assigned {rfid} to HS West breeders')
 
 
@@ -289,7 +293,7 @@ class HSWBreeders(Request):
 
                 else:
                     assign_to[rfid] = rats_to_assign[rfid]
-                    self.remove([rfid], remaining_requests = [])
+                    self.remove([rfid])
                     message = (
                         f'Manually assigned {rfid} to HS West breeders \n'
                         f'!!! \n'
@@ -467,13 +471,14 @@ class HSWBreeders(Request):
             A dictionary with RFIDs of assigned rats, grouped by sex.
         '''
 
-        assigned_males = self.assigned_males
-        assigned_females = self.assigned_females
-        assigned_total = assigned_males | assigned_females
-        out = {'assigned_males': assigned_males, 
-               'assigned_females': assigned_females,
-               'assigned_total': assigned_total}
-        return out
+        # assigned_males = self.assigned_males
+        # assigned_females = self.assigned_females
+        # assigned_total = assigned_males | assigned_females
+        # out = {'assigned_males': assigned_males, 
+        #        'assigned_females': assigned_females,
+        #        'assigned_total': assigned_total}
+        # return out
+        return self.assigned_males | self.assigned_females
 
     # property to keep track of all breeder pairs currently available
     # to sample for assignment
@@ -491,7 +496,7 @@ class HSWBreeders(Request):
 
         # update trait metadata to include only breederpairs that are currently 
         # available for assignment
-        assigned_rats = self.assigned_rats['assigned_total']
+        assigned_rats = self.assigned_rats #['assigned_total']
         current_metadata = self.trait_metadata[
             self.trait_metadata['rfid'].isin(assigned_rats)]
         
@@ -716,9 +721,9 @@ class HSWBreeders(Request):
             A dictionary with counts of assigned rats, grouped by sex.
         '''
 
-        n_assigned_males = len(self.assigned_rats['assigned_males'])
-        n_assigned_females = len(self.assigned_rats['assigned_females'])
-        n_assigned_total = len(self.assigned_rats['assigned_total'])
+        n_assigned_males = len(self.assigned_males)
+        n_assigned_females = len(self.assigned_females)
+        n_assigned_total = len(self.assigned_rats)
 
         out = {'n_assigned_males': n_assigned_males,
                'n_assigned_females': n_assigned_females,
