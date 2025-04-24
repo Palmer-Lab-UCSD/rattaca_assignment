@@ -48,6 +48,7 @@ def load_request_files(args):
         'hsw_breeders': breeder_requests
     }
 
+
 def which_requests(args):
     '''
     List which types of requests have been made.
@@ -66,49 +67,6 @@ def which_requests(args):
                 req_type = req_metadata['assignment_type']
                 which_types.append(req_type)
     return(set(which_types))
-
-# probably drop - superceded by HSWBreeders.update_priority_breeders()
-# def _prioritize_breeders(args, requests):
-#     '''
-#     Assigns singleton offspring to HSW breeders by priority AFTER 
-#     project assignments have been initiated.
-    
-#     Identifies all unassigned rats that are the only M or F from their litter,
-#     assigns them automatically to HSW breeders to ensure all breeder
-#     pairs have one M and one F represented in the next HSW generation. Singleton 
-#     rats are identified by counting family members assigned to ALL current 
-#     requests. This function must be run automatically after each assignment made 
-#     to any non-breeder request.
-
-#     Args:
-#         args.colony_dataframe: The path to the colony dataframe (csv).
-#         requests: A list of all request objects (both open and fulfilled) 
-#             from the current generation.
-    
-#     Returns:
-#         A list of RFIDs that must be assigned to HSW breeders.
-#     '''
-    
-#     df = prep_colony_df(args)
-
-#     for pair in df['breederpair'].unique():
-
-#         litter_males = \
-#             df[(df['breederpair'] == pair) & (df['sex'] == 'M')]['rfid']
-#         litter_females = \
-#             df[(df['breederpair'] == pair) & (df['sex'] == 'F')]['rfid']
-        
-#     # list all rats that have been assigned
-#     assigned_males = []
-#     assigned_females = []
-#     for request in requests:
-#         request_males = list(request.assigned_rats['assigned_males'].keys())
-#         request_females = list(request.assigned_rats['assigned_females'].keys())
-#         assigned_males.extend(request_males)
-#         assigned_females.extend(request_females)
-
-#     male_breeders = list(self.assigned_males.keys())
-#     female_breeders = list(self.assigned_females.keys())
 
 
 def prioritize_breeders(breeder_request, non_breeder_requests):
