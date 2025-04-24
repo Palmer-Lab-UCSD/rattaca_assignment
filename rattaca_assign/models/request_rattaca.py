@@ -413,12 +413,13 @@ class RATTACA(Request):
         return proposed_delta, [min_rat, max_rat]
 
 
-    def assign_rattaca(self, rfids_to_assign):
+    def assign_rattaca(self, rfids_to_assign, breeders_request = None):
         '''
         Assign rats to a RATTACA project.
         
         Args:
             rfids_to_assign: List of RFIDs to assign, ordered [min_rat, max_rat].
+            breeders_request: HSWBreeders request, to which remaining animals will be assigned by priority if needed
         '''
 
         if not isinstance(rfids_to_assign, list) or len(rfids_to_assign) != 2:

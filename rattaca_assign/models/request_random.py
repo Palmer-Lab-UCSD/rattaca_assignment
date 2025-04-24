@@ -4,6 +4,7 @@ RandProj request class for random assignment.
 
 import json
 import random
+from datetime import datetime, timedelta
 from rattaca_assign.models.request import Request
 
 
@@ -30,15 +31,19 @@ class RandProj(Request):
         # read in the request metadata from json
         with open(request_file, 'r') as rf:
 
-            req_metadat = json.load(rf)
-            self.assignment_type = req_metadat['assignment_type']
-            self.project = req_metadat['project']
-            self.trait = req_metadat['trait']
-            self.n_requested_total = req_metadat['n_rats']['total']
-            self.n_requested_males = req_metadat['n_rats']['male']['total']
-            self.n_requested_females = req_metadat['n_rats']['female']['total']
-            self.max_males_per_fam = req_metadat['max_males_per_fam']
-            self.max_females_per_fam = req_metadat['max_females_per_fam']
+            req_metadata = json.load(rf)
+            self.assignment_type = req_metadata['assignment_type']
+            self.project = req_metadata['project']
+            self.trait = req_metadata['trait']
+            self.n_requested_total = req_metadata['n_rats']['total']
+            self.n_requested_males = req_metadata['n_rats']['male']['total']
+            self.n_requested_females = req_metadata['n_rats']['female']['total']
+            self.max_males_per_fam = req_metadata['max_males_per_fam']
+            self.max_females_per_fam = req_metadata['max_females_per_fam']
+            self.min_age = req_metadata['min_age']
+            self.max_age = req_metadata['max_age']
+            date_str = str(req_metadata['receive_date']) if req_metadata['receive_date'] is not None else None
+            self.receive_date = datetime.strptime(date_str, "%Y%m%d").date() if date_str is not None else None
 
         # initialize dictionaries to hold assigned rats
         self.assigned_males = {}
@@ -63,7 +68,7 @@ class RandProj(Request):
         self.fams_without_females = \
             list(set(self.all_fams) - set(self.fams_with_females))
 
-        print(f'Initialized random request: {self.trait} for {self.project}')
+        print(f'Initialized random request: {self.project}')
 
     # function to check if a randomly-assigned project has 
     # successfully assigned all requested rats
@@ -484,12 +489,12 @@ class RandProj(Request):
         that this is the appropriate functionality needed for random requests or 
         otherwise change as needed.
         '''
-        if isinstance(non_breeder_requests, list):
+        if isinstance(remaining_requests, list):
             pass
         else:
-            raise TypeError('non_breeder_requests must be a list of Request classes')
+            raise TypeError('remaining_requests must be a list of Request classes')
 
-        use_requests = [req for req in non_breeder_requests if not req.is_satisfied()]
+        use_requests = [req for req in remaining_requests if not req.is_satisfied()]
         df = self.trait_metadata
 
         # list all rats that have been assigned to other projects
