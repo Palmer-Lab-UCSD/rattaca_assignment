@@ -7,8 +7,12 @@ different projects based on their genetic predictions and other criteria.
 
 import pandas as pd
 from random import choice
+from datetime import datetime
 from itertools import permutations
 from rattaca_assign.core.model_utils import * 
+
+date_today = datetime.today().date() 
+datestamp = date_today.strftime('%Y%m%d')
 
 def run_assignments(args):
     '''
@@ -300,42 +304,69 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     '''
 
     # read in the colony dataframe
-    df = pd.read_csv(args.colony_dataframe[0], 
-                     dtype={'rfid': str, 'accessid': int})
-                                
-    all_assignments = []
-    
-    # process each request object and extract assigned rats
+    df = pd.read_csv(args.colony_dataframe[0])
+
+    # add assignment columns                       
+    df['project_name'] = 'not_assigned'
+    df['request_name'] = 'not_assigned'
+    df['assignment'] = 'not_assigned'
+
+    # organize columns 
+    assign_cols = ['generation','animalid','accessid','rfid','earpunch','sex',
+        'coatcolor','rack_number','rack_position','plate_id','well_position',
+        'dob','dow','dorfid','breederpair','dam','sire','littersize','num_weaned',
+        'num_sacked','project_name','request_name','assignment', 'comments']
+    col_dtypes = {'generation': 'Int64', 'animalid':'str','accessid':'int', 
+        'rfid':'str', 'earpunch':'str', 'sex':'str', 'coatcolor':'str', 
+        'rack_number':'int','rack_position':'str','plate_id':'str', 
+        'well_position':'str', 'dob':'str','dow':'str', 'dorfid':'str',
+        'breederpair': 'str', 'dam':'str', 'sire':'str','littersize':'Int64', 
+        'num_weaned':'Int64', 'num_sacked':'Int64', 'project_name': 'str',
+        'request_name':'str', 'assignment':'str'}
+    df = df[assign_cols]
+    df = df.astype(col_dtypes).sort_values('animalid')
+    assign_cols.remove('comments')
+
+    # get assigned RFIDs from each request
+    assign_names = []
     for req in assigned_requests:
+
         project_name = req.project
+        request_name = req.request_name
+        assign_name = req.assignment_name
+        assign_names.append(assign_name)
+
+        if req.assignment_type == 'rattaca':
+            assigned_rfids = list(req.assigned_rats['assigned_total'].keys())
+        else:
+            assigned_rfids = list(req.assigned_rats.keys())
+                
+        # write assignments to the dataframe
+        df.loc[df['rfid'].isin(assigned_rfids), 'project_name'] = project_name
+        df.loc[df['rfid'].isin(assigned_rfids), 'request_name'] = request_name
+        df.loc[df['rfid'].isin(assigned_rfids), 'assignment'] = assign_name
+        df[assign_name] = df['rfid'].isin(assigned_rfids).astype(int)
+
+        # save request-specific assignments to file
+        req_df = df[df['assignment']==assign_name]
+        req_cols = assign_cols + ['comments']
+        req_df = req_df[req_cols]
+        req_df.sort_values('animalid', inplace=True)
+        req_file = f'{output_prefix}_assign_{assign_name}_{datestamp}.csv'
+        req_df.to_csv(req_file, index=False, na_rep='')
+        print(f'{assign_name} assignments saved to {req_file}')
+
+    # set the assignment name order to put breeders first
+    if 'hsw_breeders' in assign_names:
+        assign_names.remove('hsw_breeders')
+        assign_names.insert(0, 'hsw_breeders')
         
-        # add assigned rats to the results
-        assigned_rfids = list(req.assigned_rats.keys())
-        for rfid in assigned_rfids:
-            all_assignments.append({
-                'project': project_name,
-                'rfid': rfid
-            })
-    
-    # create dataframe from all assignments
-    result_df = pd.DataFrame(all_assignments)
-    
     # write all assignments to file
-    if output_prefix:
-        assignments_file = f'{output_prefix}_all_assignments.csv'
-        result_df.to_csv(assignments_file, index=False)
-        
-        # create per-project files
-        print(f'\n')
-        for project in result_df['project'].unique():
-            project_df = result_df[result_df['project'] == project]
-            project_file = f'{output_prefix}_{project}_assignments.csv'
-            project_df.to_csv(project_file, index=False)
-            print(f'{project} assignments saved to {project_file}')
-        
-        print(f'All assignments saved to {assignments_file} \n')
-    
-    return result_df
+    assign_cols = assign_cols + assign_names + ['comments']
+    df = df[assign_cols]
+    assignments_file = f'{output_prefix}_assignments_{datestamp}.csv'
+    df.to_csv(assignments_file, index=False, na_rep='')    
+    print(f'\nAll assignments saved to {assignments_file} \n')
 
 
 # UNTESTED
