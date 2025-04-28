@@ -235,3 +235,184 @@ def plot_assignments(preds,
         plt.close()
     else:
         plt.show()
+
+def density_assignments(preds,
+                        assignments,
+                        trait, 
+                        assignment_col,
+                        n_groups=2,
+                        gen=None, 
+                        trait_name=None,
+                        outdir=None):
+    """
+    Produce an assignment density plot: trait z-score density using Seaborn.
+    
+    Parameters
+    ----------
+    preds : str
+        File path to a csv dataframe of trait predictions including a trait 
+        of interest (as produced by rattaca::get_ranks_zscores()).
+
+    assignments : str
+        File path to a csv dataframe of RATTACA request assignments (as 
+        produced by rattaca_assign.assign.output_assignment_results())
+        
+    trait : str
+        The name of the trait of interest. Must be the column header for the 
+        trait predictions to be plotted.
+
+    assignment_col : str
+        The column header for the column in assignments that identifies which
+        assignments to be plotted.
+        
+    n_groups : int
+        The number of group assignments to plot. 2 will assign 'high' and 
+        'low' groups, 3 will assign 'high', 'med', and 'low', higher numbers 
+        will return groups numbered by quantile.
+    
+    gen : int
+        The RATTACA generation being plotted.
+    
+    trait_name : str
+        (Default None) The desired trait name to use in the figure title and 
+        file name. Use this option to simplify naming when a trait has a long 
+        or unintuitive variable name.
+    
+    outdir : str
+        (Default None) The directory path in which to save the figure. If None, 
+        the figure will display using plt.show().
+    
+    Returns
+    -------
+    None
+        Displays figure if outdir=None. Saves a png file if outdir is not None.
+    """
+    if trait_name is None:
+        trait_name = trait
+
+    # read in files
+    preds_df = pd.read_csv(preds, dtype={'rfid': str})
+    assigns_df = pd.read_csv(assignments, dtype={'rfid': str})
+    
+    # define output file path if saving
+    if outdir is not None:
+        out_stem = os.path.join(outdir, f'rattaca_gen{gen}_{trait_name}_assignment_density.png')
+
+    # columns to process for plotting
+    zscore_col = f'{trait}_zscore'
+    group_col = f'{trait}_group'
+    
+    # filter for assigned rows (handle different types of True values)
+    assigned_df = assigns_df[(assigns_df[assignment_col] == 1) | 
+                            (assigns_df[assignment_col] == True) | 
+                            (assigns_df[assignment_col] == 'True')]
+    
+    # extract predictions & group designations for the trait of interest
+    trait_cols = [col for col in preds_df.columns if col.startswith(trait) or col == 'rfid']
+    trait_preds = preds_df[trait_cols].copy()
+    
+    # get assignment group ('high/low') designations for all samples
+    trait_preds[group_col] = trait_groups(preds=preds_df, trait=trait, n_groups=n_groups)
+    
+    # trait dataset: predictions and assignments
+    trait_df = pd.merge(assigned_df, trait_preds, how='inner', on='rfid')
+    
+    # split data by group
+    high_df = trait_df[trait_df[group_col] == 'high']
+    low_df = trait_df[trait_df[group_col] == 'low']
+    if n_groups == 3:
+        med_df = trait_df[trait_df[group_col] == 'med']
+    
+    # create figure and get axes
+    fig, ax = plt.subplots(figsize=(7, 5))
+    sns.set_style('white')
+    
+    # manually create rug plot for all points 
+    all_zscores = preds_df[zscore_col].dropna().values
+    ax.vlines(all_zscores, 0, -0.016, color='black', alpha=0.16, linewidth=0.8)
+    
+    # add assigned points to the rug
+    if len(trait_df) > 0:
+        assigned_zscores = trait_df[zscore_col].dropna().values
+        ax.vlines(assigned_zscores, 0, -0.018, color='black', alpha=1.0, linewidth=1.2)
+    
+    # plot KDE using seaborn
+    kde_plot = sns.kdeplot(
+        data = preds_df,
+        x = zscore_col,
+        ax = ax,
+        fill = True,
+        color = 'black',
+        alpha = 0.15,
+        linewidth = 2,
+        common_norm = True
+    )
+    
+    # calculate the kernel density to get the density at x=0
+    kde = stats.gaussian_kde(preds_df[zscore_col].dropna())
+    density_at_zero = kde(0)[0]
+    
+    # draw vertical line at zero from x-axis to the density value
+    ax.vlines(x=0, ymin=0, ymax=density_at_zero, color='black', linestyle='-', linewidth=1)
+    
+    # add colored points for high/low groups
+    if len(low_df) > 0:
+        ax.scatter(
+            x = low_df[zscore_col].values,
+            y = np.zeros_like(low_df[zscore_col].values),
+            s = 40,
+            color = sns.color_palette('inferno', n_colors=10)[2],
+            zorder = 3
+        )
+    
+    if len(high_df) > 0:
+        ax.scatter(
+            x = high_df[zscore_col].values, 
+            y = np.zeros_like(high_df[zscore_col].values),
+            s = 40, 
+            color = sns.color_palette('inferno', n_colors=10)[7], 
+            zorder = 3
+        )
+    
+    # add medium group if n_groups = 3
+    if n_groups == 3 and len(med_df) > 0:
+        ax.scatter(
+            x = med_df[zscore_col].values,
+            y = np.zeros_like(med_df[zscore_col].values),
+            s = 40,
+            color = sns.color_palette('inferno', n_colors=10)[5],
+            zorder = 3
+        )
+    
+    # add outlines for all assigned points
+    if len(trait_df) > 0:
+        ax.scatter(
+            x = trait_df[zscore_col].values,
+            y = np.zeros_like(trait_df[zscore_col].values),
+            s = 40,
+            facecolors = 'none',
+            edgecolors = 'black',
+            linewidth = 1.6,
+            zorder = 4
+        )
+    
+    # set labels and title
+    ax.set_xlabel(f'{trait_name}\nprediction Z-score', fontweight='bold')
+    ax.set_ylabel('Density', fontweight='bold')
+    
+    if gen is not None:
+        ax.set_title(f'RATTACA gen {gen}\n{trait_name} assignments', pad=15)
+    else:
+        ax.set_title(f'{trait_name} assignments', pad=15)
+    
+    # set y-limit to allow space for the rug
+    ax.set_ylim(bottom=-0.022)
+    
+    fig.tight_layout()
+    
+    # save or show
+    if outdir is not None:
+        plt.savefig(out_stem, dpi=300)
+        plt.close()
+    else:
+        plt.show()
