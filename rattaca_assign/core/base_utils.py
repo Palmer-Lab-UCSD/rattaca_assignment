@@ -2,7 +2,15 @@
 Basic utility functions that don't depend on request model classes.
 """
 
+import os
+import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
+import matplotlib.cm as cm
+import seaborn as sns
+from scipy import stats
+
 
 def prep_colony_df(args):
     '''
@@ -235,6 +243,7 @@ def plot_assignments(preds,
         plt.close()
     else:
         plt.show()
+
 
 def density_assignments(preds,
                         assignments,

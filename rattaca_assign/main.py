@@ -25,7 +25,7 @@ def main(args=None):
 
     # save results to file
     if args.output_prefix:
-        output_assignment_results(assignments, args.output_prefix[0])
+        output_assignment_results(args, assignments, args.output_prefix[0])
     else:
         print('No results saved to file. Set [-o OUTPUT_PREFIX] in the command line to save results \n')
 

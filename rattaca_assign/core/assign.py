@@ -306,6 +306,11 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     # read in the colony dataframe
     df = pd.read_csv(args.colony_dataframe[0])
 
+    # format dates
+    df['dob'] = pd.to_datetime(df['dob'], format='mixed').dt.date
+    df['dow'] = pd.to_datetime(df['dow'], format='mixed').dt.date
+    df['dorfid'] = pd.to_datetime(df['dorfid'], format='mixed').dt.date
+
     # add assignment columns                       
     df['project_name'] = 'not_assigned'
     df['request_name'] = 'not_assigned'
@@ -326,7 +331,7 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     df = df[assign_cols]
     df = df.astype(col_dtypes).sort_values('animalid')
     assign_cols.remove('comments')
-
+    
     # get assigned RFIDs from each request
     assign_names = []
     for req in assigned_requests:
