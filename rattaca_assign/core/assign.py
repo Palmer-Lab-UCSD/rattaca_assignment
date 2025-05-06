@@ -374,6 +374,96 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     print(f'\nAll assignments saved to {assignments_file} \n')
 
 
+def output_assignment_preds(args, assignments, preds, outdir):
+    '''
+    Merge assignment results with predictions and save to CSV files formatted 
+    for requesters.
+    
+    Args:
+        assignments: A csv path or Pandas dataframe with assignment mapped to 
+            requests, as output by output_assignment_results().
+        preds: A csv path or Pandas dataframe with trait predictions, as output
+            by the 'rattaca' R package. 
+        outdir: The directory in which to save output files.
+        args: Command line arguments containing path(s) to request json file(s)
+        
+    Returns:
+        A dataframe containing all assignment results.
+    '''
+    
+    if isinstance(assignments, str):
+        assign_df = pd.read_csv(assignments, dtype={'rfid': str})
+    else:
+        assign_df = assignments
+    
+    if isinstance(preds, str):
+        preds_df = pd.read_csv(preds, dtype={'rfid': str})
+    else:
+        preds_df = preds
+
+    # format dates
+    assign_df['dob'] = pd.to_datetime(assign_df['dob'], format='mixed').dt.date
+    assign_df['dow'] = pd.to_datetime(assign_df['dow'], format='mixed').dt.date
+
+    # save the generation number
+    gen = assign_df['generation'].tolist()[0]
+    
+    # organize output columns 
+    assign_cols = ['rfid','animalid','earpunch','sex','coatcolor','generation',
+                   'dob','dow','project_name','request_name','assignment', 'comments']
+    col_dtypes = {'generation': 'Int64', 'animalid':'str', 'rfid':'str', 
+                  'earpunch':'str', 'sex':'str', 'coatcolor':'str', 'dob':'str', 'dow':'str', 
+                  'project_name':'str', 'request_name':'str', 'assignment':'str','comments':'str'}
+
+    request_traits = {}
+    for req_file in args.requests: 
+        with open(req_file, 'r') as rf:
+            req = json.load(rf)
+            req_name = req['request_name']
+            req_trait = req['trait']
+            if req_trait is not None:
+                request_traits[req_name] = req_trait
+
+    for req_name in request_traits.keys():
+
+        req_trait = request_traits[req_name]
+
+        # subset to assigned rats
+        req_assignments = assign_df[assign_df['request_name'] == req_name]
+        req_assignments = req_assignments.sort_values('rfid')
+        req_assignments = req_assignments[assign_cols].copy()
+        assign_cols.remove('comments')
+        
+        # extract predictions for the requested trait
+        pred_cols = ['rfid', req_trait, f'{req_trait}_rank', f'{req_trait}_zscore']
+        req_preds = preds_df[pred_cols].copy()
+        pred_cols.remove('rfid')
+        req_preds[f'{req_trait}_group'] = trait_groups(preds=req_preds, trait=req_trait, n_groups=2)
+        
+        # merge asssignments and predictions
+        req_preds = req_assignments.merge(req_preds, on='rfid')
+        out_cols = assign_cols + pred_cols + ['comments']
+        req_preds = req_preds[out_cols]
+
+        if pathlib.Path(outdir).parts[-1] != 'request_results':
+            req_outdir = os.path.join(outdir, 'request_results')
+            os.makedirs(outdir, exist_ok = True)
+        else:
+            req_outdir = outdir
+            
+        req_outdir = os.path.join(req_outdir, req_name)
+        os.makedirs(req_outdir, exist_ok = True)
+
+        # modify the request name for the output file
+        out_name = req_name.replace(f'rattaca_gen{gen}_', '')        
+        assign_outfile = os.path.join(req_outdir, f'rattaca_gen{gen}_results_{out_name}_BLIND.csv')
+        preds_outfile = os.path.join(req_outdir, f'rattaca_gen{gen}_results_{out_name}.csv')
+        
+        req_assignments.to_csv(assign_outfile, index=False)
+        req_preds.to_csv(preds_outfile, index=False)
+        print(f'{req_name} assignments + predictions saved to {preds_outfile} \n')
+
+
 # UNTESTED
 def permute_random():
     '''
