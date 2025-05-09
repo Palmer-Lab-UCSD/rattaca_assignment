@@ -56,14 +56,15 @@ RATTACA_assignment can be run from the command line:
 ```bash
 #!/bin/bash 
 
-rattaca_assign -c colony_dataframe.csv -p predictions.csv -o /output/path/output_prefix -r request1.json request2.json
+rattaca_assign -c colony_dataframe.csv -p predictions.csv -o /output/path/ -f output_prefix -r request1.json request2.json
 ```
 
 Command line options:
 - `-c, --colony_df`: Path to the HS West colony dataframe CSV for the current generation (required)
 - `-r, --request_files`: Path to one or more request files in JSON format (required)
 - `-p, --predictions`: Path to the RATTACA predictions CSV (optional)
-- `-o, --output_prefix`: Output file prefix (optional)
+- `-o, --output_dir`: Output directory (optional)
+- `-f, --output_prefix`: Output filename prefix (optional)
 - `-e, --exclude_rfids`: Path to CSV file containing RFIDs to exclude from assignment (optional)
 
 ### Python API
@@ -109,6 +110,8 @@ Example json file for a RATTACA project requesting 10 male and 10 female rats wi
 {
   "assignment_type": "rattaca",
   "project": "AnxietyProject",
+  "request_name": "rattaca_gen100_anxiety",
+  "assignment_name": "AnxProj_anxiety",
   "trait": "anxiety_score",
   "min_age": 40,
   "max_age": 50,
@@ -129,12 +132,14 @@ Example json file for a RATTACA project requesting 10 male and 10 female rats wi
 }
 ```
 
-Example json file for a "random" request. Here, trait names are arbitrary. However, a given project may with to distinguish between randomly-assigned experimental and control groups, in which case two files should be made the the same project name but different trait names (and relevant request numbers per group). Here, this example will allow no same-sex siblings to be drawn from the same litter. Note that age restrictions and the receipt date are all null, meaning no restrictions are set:
+Example json files for "random" request. Here, trait names are null, as assignment does not rely on any trait predictions. Often, a given project may wish to distinguish between randomly-assigned experimental and control groups, in which case two files should be made with the the same project name but different request names (and relevant request numbers per group). Here, this example will allow no same-sex siblings to be drawn from the same litter in the experimental group, but has no such restriction for the control group. Note that age restrictions and the receipt date are all null, meaning no restrictions are set:
 ```json
 {
   "assignment_type": "random",
   "project": "AddictionProject",
-  "trait": "control_group",
+  "request_name": "hsw_gen100_addiction_experimental",
+  "assignment_name": "addproj_addiction_exp",
+  "trait": null,
   "max_males_per_fam" : 1,
   "max_females_per_fam" : 1,
   "min_age": null,
@@ -150,14 +155,38 @@ Example json file for a "random" request. Here, trait names are arbitrary. Howev
     }
   }
 }
+
+{
+  "assignment_type": "random",
+  "project": "AddictionProject",
+  "request_name": "hsw_gen100_addiction_control",
+  "assignment_name": "addproj_addiction_ctrl",
+  "trait": null,
+  "max_males_per_fam" : 0,
+  "max_females_per_fam" : 0,
+  "min_age": null,
+  "max_age": null,
+  "receive_date": null,
+  "n_rats": {
+    "total": 16,
+    "male": {
+      "total": 8
+    },
+    "female": {
+      "total": 8
+    }
+  }
+}
 ```
 
-Example json file for HSW breeders. Assignment type, project name, and trait name are always "hsw_breeders". Typical generations at HSW keep 70 breeding pairs - one male and one female per litter:
+Example json file for HSW breeders. Assignment type, project name, request name, and assignment name are always "hsw_breeders", and trait name is always null. Typical generations at HSW keep 70 breeding pairs - one male and one female per litter:
 ```json
 {
   "assignment_type": "hsw_breeders",
-  "project": "hsw_breeders",
-  "trait": "hsw_breeders",
+  "project": "hs_west_colony",
+  "request_name": "hsw_gen100_colony",
+  "assignment_name": "hsw_breeders",
+  "trait": null,
   "max_males_per_fam" : 1,
   "max_females_per_fam" : 1,
   "min_age": null,
