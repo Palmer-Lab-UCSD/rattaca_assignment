@@ -2,7 +2,7 @@
     "project" : "random_1",
     "request_name": "rand_request_1",
     "assignment_name": "rand_1_trait_naive",
-    "trait" : "random_1_naive",
+    "trait" : null,
     "assignment_type" : "random",
     "max_males_per_fam" : 1,
     "max_females_per_fam" : 1,
