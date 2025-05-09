@@ -81,6 +81,53 @@ def prep_colony_df(args):
     return(df)
 
 
+def trait_groups(preds, trait, n_groups=2):
+    '''
+    Classify group values based on trait predictions. This does not
+    'officially' assign rats to a group, rather classifies whether a rat 
+    belongs into high/low groups (or another quantile) based on its 
+    predicted trait value. Samples are drawn from these groups using
+    assign_rattaca().
+    
+    Args:
+        preds: Path to a csv file of trait predictions. 
+        trait: The trait to group by. Must be the name of a column in the dataframe.
+        n_groups: The number of groups to create. 2 will assign 'high'
+            and 'low' groups, 3 will assign 'high', 'med', and 'low',
+            higher numbers will return groups numbered by quantile.
+        
+    Returns:
+        A list of group classifications.
+    '''
+    
+    # preds = pd.read_csv(preds)
+    preds = preds[trait].tolist()
+    trait_quantiles = np.quantile(a=preds, q=np.linspace(0, 1, n_groups+1))
+    
+    if n_groups == 2:
+        def get_2group(val, quantiles):
+            if val >= quantiles[1]:
+                return 'high'
+            else:
+                return 'low'
+        groups = [get_2group(pred, trait_quantiles) for pred in preds]
+    
+    elif n_groups == 3:
+        def get_3group(val, quantiles):
+            if val < quantiles[1]:
+                return 'low'
+            elif val >= quantiles[2]:
+                return 'high'
+            else:
+                return 'mid'
+        groups = [get_3group(pred, trait_quantiles) for pred in preds]
+    
+    else:
+        groups = np.digitize(preds, trait_quantiles)
+        
+    return groups
+
+
 def plot_assignments(preds, 
                     assignments,
                     trait, 
