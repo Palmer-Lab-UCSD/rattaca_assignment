@@ -24,18 +24,21 @@ def parse_args(args=None):
             between-group differences in predicted traits when
             assigning rats to new projects''')
             
-    parser.add_argument('-o', '--output_prefix', 
+    parser.add_argument('-o', '--output_dir', 
         required=False, type=str, nargs=1, 
-        dest='output_prefix', help='<output file prefix: /desired/path/plus_file_prefix>')
+        dest='output_dir', help='<output directory: /desired/output/folder>')
+    parser.add_argument('-f', '--output_prefix', 
+        required=False, type=str, nargs=1, 
+        dest='output_prefix', help='<output file prefix>')
     parser.add_argument('-c', '--colony_df', 
         required=True, type=str, nargs=1, 
         dest='colony_dataframe', help='<HS West colony dataframe csv>')
     parser.add_argument('-p', '--predictions', 
         required=False, type=str, nargs=1, 
-        dest='predictions', help='<rattaca predictions csv')
+        dest='predictions', help='<rattaca predictions csv>')
     parser.add_argument('-r', '--request_files', 
         required=True, type=str, 
-        nargs='+', dest='requests', help='<requests jsons')
+        nargs='+', dest='requests', help='<requests jsons>')
     parser.add_argument('-e', '--exclude_rfids', 
         required=False, type=str, nargs=1,
         dest='exclude', help='RFIDs in colony data to exclude from assignment')
