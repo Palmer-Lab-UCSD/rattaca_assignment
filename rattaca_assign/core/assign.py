@@ -7,9 +7,11 @@ different projects based on their genetic predictions and other criteria.
 
 import pandas as pd
 from random import choice
+from pathlib import Path
 from datetime import datetime
 from itertools import permutations
 from rattaca_assign.core.model_utils import * 
+from rattaca_assign.core.base_utils import *
 
 date_today = datetime.today().date() 
 datestamp = date_today.strftime('%Y%m%d')
@@ -359,7 +361,7 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
         req_df.sort_values('animalid', inplace=True)
         req_file = f'{output_prefix}_assign_{assign_name}_{datestamp}.csv'
         req_df.to_csv(req_file, index=False, na_rep='')
-        print(f'{assign_name} assignments saved to {req_file}')
+        print(f'\n{assign_name} assignments saved to {req_file}')
 
     # set the assignment name order to put breeders first
     if 'hsw_breeders' in assign_names:
@@ -373,8 +375,10 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     df.to_csv(assignments_file, index=False, na_rep='')    
     print(f'\nAll assignments saved to {assignments_file} \n')
 
+    return(df)
 
-def output_assignment_preds(args, assignments, preds, outdir):
+
+def output_assignment_preds(assignments, preds, outdir, requests=None, args=None):
     '''
     Merge assignment results with predictions and save to CSV files formatted 
     for requesters.
@@ -385,7 +389,9 @@ def output_assignment_preds(args, assignments, preds, outdir):
         preds: A csv path or Pandas dataframe with trait predictions, as output
             by the 'rattaca' R package. 
         outdir: The directory in which to save output files.
-        args: Command line arguments containing path(s) to request json file(s)
+        requests: Optional. A list of request file paths or request dictionaries.
+        args: Optional. Command line arguments containing path(s) to request 
+            json file(s). Only used if requests is None.
         
     Returns:
         A dataframe containing all assignment results.
@@ -415,24 +421,50 @@ def output_assignment_preds(args, assignments, preds, outdir):
                   'earpunch':'str', 'sex':'str', 'coatcolor':'str', 'dob':'str', 'dow':'str', 
                   'project_name':'str', 'request_name':'str', 'assignment':'str','comments':'str'}
 
+    # get request traits - handle both args and direct request inputs
     request_traits = {}
-    for req_file in args.requests: 
-        with open(req_file, 'r') as rf:
-            req = json.load(rf)
-            req_name = req['request_name']
-            req_trait = req['trait']
-            if req_trait is not None:
-                request_traits[req_name] = req_trait
+
+    # read in requests from a list
+    if requests is not None:
+        for req in requests:
+        
+            # read from file paths
+            if isinstance(req, str):
+                with open(req, 'r') as rf:
+                    req_data = json.load(rf)
+                    req_name = req_data['request_name']
+                    req_trait = req_data['trait']
+                    if req_trait is not None:
+                        request_traits[req_name] = req_trait
+            # read from dictionaries
+            elif isinstance(req, dict):
+                req_name = req['request_name']
+                req_trait = req['trait']
+                if req_trait is not None:
+                    request_traits[req_name] = req_trait
+
+    # read in requests from arguments
+    elif args is not None and hasattr(args, 'requests'):
+        for req_file in args.requests: 
+            with open(req_file, 'r') as rf:
+                req = json.load(rf)
+                req_name = req['request_name']
+                req_trait = req['trait']
+                if req_trait is not None:
+                    request_traits[req_name] = req_trait
+    else:
+        raise ValueError("Either 'requests' or 'args' must be provided")
 
     for req_name in request_traits.keys():
-
+        
         req_trait = request_traits[req_name]
 
         # subset to assigned rats
         req_assignments = assign_df[assign_df['request_name'] == req_name]
         req_assignments = req_assignments.sort_values('rfid')
         req_assignments = req_assignments[assign_cols].copy()
-        assign_cols.remove('comments')
+        assign_cols_out = assign_cols.copy()
+        assign_cols_out.remove('comments')
         
         # extract predictions for the requested trait
         pred_cols = ['rfid', req_trait, f'{req_trait}_rank', f'{req_trait}_zscore']
@@ -442,10 +474,10 @@ def output_assignment_preds(args, assignments, preds, outdir):
         
         # merge asssignments and predictions
         req_preds = req_assignments.merge(req_preds, on='rfid')
-        out_cols = assign_cols + pred_cols + ['comments']
+        out_cols = assign_cols_out + pred_cols + ['comments']
         req_preds = req_preds[out_cols]
 
-        if pathlib.Path(outdir).parts[-1] != 'request_results':
+        if Path(outdir).parts[-1] != 'request_results':
             req_outdir = os.path.join(outdir, 'request_results')
             os.makedirs(outdir, exist_ok = True)
         else:
@@ -462,7 +494,7 @@ def output_assignment_preds(args, assignments, preds, outdir):
         req_assignments.to_csv(assign_outfile, index=False)
         req_preds.to_csv(preds_outfile, index=False)
         print(f'{req_name} assignments + predictions saved to {preds_outfile} \n')
-
+    
 
 # UNTESTED
 def permute_random():
