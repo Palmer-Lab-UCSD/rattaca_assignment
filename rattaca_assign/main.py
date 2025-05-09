@@ -1,6 +1,6 @@
 from rattaca_assign.cli import parse_args
 from rattaca_assign.core.assign import *
-
+import os
 
 def main(args=None):
     '''Main entry point for the RATTACA assignment package.'''
@@ -25,9 +25,22 @@ def main(args=None):
 
     # save results to file
     if args.output_prefix:
-        output_assignment_results(args, assignments, args.output_prefix[0])
+        
+        assignments_df = output_assignment_results(
+            args = args, 
+            assigned_requests = assignments, 
+            output_prefix = os.path.join(args.output_dir[0], args.output_prefix[0])
+        )
+        
+        output_assignment_preds(
+            assignments = assignments_df,
+            preds = args.predictions[0],
+            outdir = args.output_dir[0],
+            args = args
+        )
+
     else:
-        print('No results saved to file. Set [-o OUTPUT_PREFIX] in the command line to save results \n')
+        print('\nNo results saved to file. Set [-o OUTPUT_PREFIX] in the command line to save results \n')
 
     print('\nRATTACA assignment complete! \n')
 
