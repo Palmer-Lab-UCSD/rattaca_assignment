@@ -143,13 +143,13 @@ def plot_assignments(preds,
     
     Parameters
     ----------
-    preds : str
-        File path to a csv dataframe of trait predictions including a trait 
-        of interest (as produced by rattaca::get_ranks_zscores()).
+    preds : str or dataframe
+        File path to a csv or pandas dataframe of trait predictions including a 
+        trait of interest (as produced by rattaca::get_ranks_zscores()).
 
-    assignments : str
-        File path to a csv dataframe of RATTACA request assignments (as 
-        produced by rattaca_assign.assign.output_assignment_results())
+    assignments : str or dataframe
+        File path to a csv or pandas dataframe of RATTACA request assignments 
+        (as produced by rattaca_assign.assign.output_assignment_results())
         
     trait : str
         The name of the trait of interest. Must be the column header for the 
@@ -196,8 +196,15 @@ def plot_assignments(preds,
         trait_name = trait
 
     # read in files
-    preds = pd.read_csv(preds, dtype = {'rfid': str})
-    assigns = pd.read_csv(assignments, dtype = {'rfid': str})
+    if isinstance(assignments, str):
+        assigns = pd.read_csv(assignments, dtype={'rfid': str})
+    else:
+        assigns = assignments
+
+    if isinstance(preds, str):
+        preds = pd.read_csv(assignments, dtype={'rfid': str})
+    else:
+        preds = preds
     
     # define output file path if saving
     if outdir is not None:
