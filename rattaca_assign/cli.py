@@ -42,5 +42,7 @@ def parse_args(args=None):
     parser.add_argument('-e', '--exclude_rfids', 
         required=False, type=str, nargs=1,
         dest='exclude', help='RFIDs in colony data to exclude from assignment')
-
+    parser.add_argument('-m', '--request_map', 
+        required=False, type=str, nargs=1,
+        dest='request_map', help='path to request map csv (rows=request, cols=traits)') 
     return parser.parse_args(args)
