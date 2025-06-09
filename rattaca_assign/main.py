@@ -26,18 +26,20 @@ def main(args=None):
     # save results to file
     if args.output_prefix:
         
+        # assignment files: per-request and all requests
         assignments_df = output_assignment_results(
             args = args, 
             assigned_requests = assignments, 
             output_prefix = os.path.join(args.output_dir[0], args.output_prefix[0])
         )
         
+        # RATTACA requests results files: assignments + predictions
         output_assignment_preds(
+            requests = args.request_files,
             assignments = assignments_df,
             preds = args.predictions[0],
             outdir = args.output_dir[0],
-            args = args
-        )
+            request_map = args.request_map[0])
 
     else:
         print('\nNo results saved to file. Set [-o OUTPUT_PREFIX] in the command line to save results \n')

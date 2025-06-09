@@ -378,7 +378,7 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     return(df)
 
 
-def output_assignment_preds(assignments, preds, outdir, requests=None, args=None):
+def output_assignment_preds(assignments, preds, outdir, requests=None, request_map=None):
     '''
     Merge assignment results with predictions and save to CSV files formatted 
     for requesters.
@@ -386,12 +386,17 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, args=None
     Args:
         assignments: A csv path or Pandas dataframe with assignment mapped to 
             requests, as output by output_assignment_results().
+
         preds: A csv path or Pandas dataframe with trait predictions, as output
             by the 'rattaca' R package. 
+
         outdir: The directory in which to save output files.
-        requests: Optional. A list of request file paths or request dictionaries.
-        args: Optional. Command line arguments containing path(s) to request 
-            json file(s). Only used if requests is None.
+
+        requests: A list of request file paths or request dictionaries. 
+        
+        request_map: Optional. A csv path with rows = requests and columns = traits.
+            Used to define which trait predictions should be saved together for a 
+            given request.
         
     Returns:
         A dataframe containing all assignment results.
@@ -406,6 +411,9 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, args=None
         preds_df = pd.read_csv(preds, dtype={'rfid': str})
     else:
         preds_df = preds
+
+    if isinstance(request_map, str):
+        request_map = pd.read_csv(request_map)
 
     # format dates
     assign_df['dob'] = pd.to_datetime(assign_df['dob'], format='mixed').dt.date
@@ -425,35 +433,22 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, args=None
     request_traits = {}
 
     # read in requests from a list
-    if requests is not None:
-        for req in requests:
-        
-            # read from file paths
-            if isinstance(req, str):
-                with open(req, 'r') as rf:
-                    req_data = json.load(rf)
-                    req_name = req_data['request_name']
-                    req_trait = req_data['trait']
-                    if req_trait is not None:
-                        request_traits[req_name] = req_trait
-            # read from dictionaries
-            elif isinstance(req, dict):
-                req_name = req['request_name']
-                req_trait = req['trait']
+    for req in requests:
+    
+        # read from file paths
+        if isinstance(req, str):
+            with open(req, 'r') as rf:
+                req_data = json.load(rf)
+                req_name = req_data['request_name']
+                req_trait = req_data['trait']
                 if req_trait is not None:
                     request_traits[req_name] = req_trait
-
-    # read in requests from arguments
-    elif args is not None and hasattr(args, 'requests'):
-        for req_file in args.requests: 
-            with open(req_file, 'r') as rf:
-                req = json.load(rf)
-                req_name = req['request_name']
-                req_trait = req['trait']
-                if req_trait is not None:
-                    request_traits[req_name] = req_trait
-    else:
-        raise ValueError("Either 'requests' or 'args' must be provided")
+        # read from dictionaries
+        elif isinstance(req, dict):
+            req_name = req['request_name']
+            req_trait = req['trait']
+            if req_trait is not None:
+                request_traits[req_name] = req_trait
 
     for req_name in request_traits.keys():
         
@@ -465,13 +460,44 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, args=None
         req_assignments = req_assignments[assign_cols].copy()
         assign_cols_out = assign_cols.copy()
         assign_cols_out.remove('comments')
+                
+        # extract predictions for all requested traits (if provided)
+        if request_map is not None:
+            map_row = request_map[request_map['request_name'] == req_name]
+            req_traits = [col for col in map_row.columns if map_row[col].iloc[0] == 1]
+
+            # get all columns for requested traits
+            all_cols = ['rfid']
+            for trait in req_traits:
+                all_cols.extend([trait, f'{trait}_rank', f'{trait}_zscore'])
+            
+            req_preds = preds_df[all_cols].copy()
+            
+            for req_trait in req_traits:
+                group_col = f'{req_trait}_group'
+                # create temporary dataframe for trait_groups function
+                trait_cols = ['rfid', req_trait, f'{req_trait}_rank', f'{req_trait}_zscore']
+                temp_df = req_preds[trait_cols].copy()
+                
+                # get assignment groups for each trait
+                req_preds[group_col] = trait_groups(preds=temp_df, trait=req_trait)
+
+            # assemble all trait results
+            pred_cols = ['rfid']
+            for trait in req_traits:
+                pred_cols.extend([trait, f'{trait}_rank', f'{trait}_zscore', f'{trait}_group'])
+            
+            req_preds = req_preds[pred_cols]
         
-        # extract predictions for the requested trait
-        pred_cols = ['rfid', req_trait, f'{req_trait}_rank', f'{req_trait}_zscore']
-        req_preds = preds_df[pred_cols].copy()
-        pred_cols.remove('rfid')
-        req_preds[f'{req_trait}_group'] = trait_groups(preds=req_preds, trait=req_trait, n_groups=2)
-        
+        # or, extract predictions only for the assignment trait
+        else:
+            pred_cols = ['rfid', req_trait, f'{req_trait}_rank', f'{req_trait}_zscore']
+            req_preds = preds_df[pred_cols].copy()
+            group_col = f'{req_trait}_group'
+            req_preds[group_col] = trait_groups(preds=req_preds, trait=req_trait, n_groups=2)
+            pred_cols = pred_cols + [group_col]
+            pred_cols.remove('rfid')
+
         # merge asssignments and predictions
         req_preds = req_assignments.merge(req_preds, on='rfid')
         out_cols = assign_cols_out + pred_cols + ['comments']
