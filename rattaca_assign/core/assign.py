@@ -378,25 +378,29 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     return(df)
 
 
-def output_assignment_preds(assignments, preds, outdir, requests=None, request_map=None):
+def output_assignment_preds(assignments, preds, outdir, requests, request_map=None, preds_dir=None):
     '''
     Merge assignment results with predictions and save to CSV files formatted 
     for requesters.
     
     Args:
+    
         assignments: A csv path or Pandas dataframe with assignment mapped to 
             requests, as output by output_assignment_results().
-
+    
         preds: A csv path or Pandas dataframe with trait predictions, as output
             by the 'rattaca' R package. 
-
+        
         outdir: The directory in which to save output files.
-
+        
         requests: A list of request file paths or request dictionaries. 
         
         request_map: Optional. A csv path with rows = requests and columns = traits.
             Used to define which trait predictions should be saved together for a 
             given request.
+        
+        preds_dir: Optional. The directory path holding all prediction results.
+            Only used if preds is not a path string.
         
     Returns:
         A dataframe containing all assignment results.
@@ -409,11 +413,15 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, request_m
     
     if isinstance(preds, str):
         preds_df = pd.read_csv(preds, dtype={'rfid': str})
+        preds_dir = os.path.dirname(preds)
     else:
         preds_df = preds
+        if preds_dir is None:
+            raise ValueError('Must input a preds_dir path')
 
     if isinstance(request_map, str):
         request_map = pd.read_csv(request_map)
+    
 
     # format dates
     assign_df['dob'] = pd.to_datetime(assign_df['dob'], format='mixed').dt.date
@@ -450,8 +458,10 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, request_m
             if req_trait is not None:
                 request_traits[req_name] = req_trait
 
+    # process each request
     for req_name in request_traits.keys():
-        
+
+        print(f'Processing request: {req_name} \n')
         req_trait = request_traits[req_name]
 
         # subset to assigned rats
@@ -503,6 +513,7 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, request_m
         out_cols = assign_cols_out + pred_cols + ['comments']
         req_preds = req_preds[out_cols]
 
+
         if Path(outdir).parts[-1] != 'request_results':
             req_outdir = os.path.join(outdir, 'request_results')
             os.makedirs(outdir, exist_ok = True)
@@ -520,7 +531,34 @@ def output_assignment_preds(assignments, preds, outdir, requests=None, request_m
         req_assignments.to_csv(assign_outfile, index=False)
         req_preds.to_csv(preds_outfile, index=False)
         print(f'{req_name} assignments + predictions saved to {preds_outfile} \n')
-    
+
+        # copy accessory prediction results into assignment results
+        if request_map is not None:
+            traits_to_copy = req_traits
+        else:
+            traits_to_copy = [req_trait]
+
+        print(f'Copying accessory predictions data for {req_name} \n')
+        for trait in traits_to_copy:
+            trait_preds_dir = os.path.join(preds_dir, trait)
+            power_analyses = glob.glob(os.path.join(trait_preds_dir, f'{trait}_test_power*_summary.csv'))
+            corr_dat = glob.glob(os.path.join(trait_preds_dir, f'{trait}_corr_*_traits.csv'))
+            corrplot = glob.glob(os.path.join(trait_preds_dir, f'{trait}_corrplots.png'))
+
+            print(f'Processing trait: {trait} \n')
+            print(f'Power analyses found: {power_analyses}')
+            print(f'Trait correlations found: {corr_dat}')
+            print(f'Correlation plots found: {corrplot}')
+            trait_preds_dat = power_analyses + corr_dat + corrplot
+
+            for file in trait_preds_dat:
+                if os.path.exists(file):  
+                    shutil.copy(file, req_outdir)
+                    print(f'Copied: {os.path.basename(file)}')
+                else:
+                    print(f'File not found: {file}')
+            print(f'\n')
+
 
 # UNTESTED
 def permute_random():

@@ -36,6 +36,9 @@ def parse_args(args=None):
     parser.add_argument('-p', '--predictions', 
         required=False, type=str, nargs=1, 
         dest='predictions', help='<rattaca predictions csv>')
+    parser.add_argument('-d', '--preds_dir', 
+        required=False, type=str, nargs=1, 
+        dest='preds_dir', help='path housing all rattaca predictions')
     parser.add_argument('-r', '--request_files', 
         required=True, type=str, 
         nargs='+', dest='requests', help='<requests jsons>')
