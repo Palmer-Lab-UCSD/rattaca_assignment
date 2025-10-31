@@ -611,6 +611,209 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
             outdir = req_outdir)    
     
 
+def update_assignments(assignments, updates, all_requests, outdir=None):
+    '''
+    Update assignment files to reflect rats that were actually shipped to the assigned project.
+    
+    Args:
+    
+        assignments: A csv path or Pandas dataframe with previously proposed 
+            assignment mapped to requests, as output by output_assignment_results().
+        
+        updates: Dict or path to an 'assignment_updates' json file. Must have 
+            key 'requests' and values specifying paths to shipping sheets for 
+            processed requests from the current generation.
+
+        all_requests: Boolean. Whether or not all current requests are included
+            in the update. If True, any RFIDs not found in the set of shipped 
+            rats will be reclassified as 'not_assigned'. If False, updates will 
+            only be made to the RFIDs included in the shipping sheets and 
+            remaining assignments will remain unchanged.
+
+        outdir: The directory in which to save output files.
+                        
+    Returns:
+        A dataframe containing all updated assignment results.
+    '''
+    
+    if isinstance(assignments, str):
+        assign_df = pd.read_csv(assignments, dtype={'rfid': str})
+    else:
+        assign_df = assignments
+    
+    if isinstance(updates, str):
+        with open(updates, 'r') as updates_file:
+            updates = json.load(updates_file)
+    else:
+        updates = updates
+
+    if not isinstance(updates, dict):
+        raise TypeError("Input 'updates' must be a dictionary.")
+    
+    # make a datestamped output directory for all results
+    if outdir is not None:
+        if Path(outdir).parts[-1] != str(datestamp):
+            outdir = os.path.join(outdir, datestamp)
+        os.makedirs(outdir, exist_ok = True)
+
+    # format dates
+    assign_df['dob'] = pd.to_datetime(assign_df['dob'], format='mixed').dt.date
+    assign_df['dow'] = pd.to_datetime(assign_df['dow'], format='mixed').dt.date
+
+    # save the generation number
+    gen = assign_df['generation'].tolist()[0]
+    
+    # organize output columns 
+    assign_cols = ['rfid','animalid','earpunch','sex','coatcolor','generation',
+                   'dob','dow','project_name','request_name','assignment', 'comments']
+    col_dtypes = {'generation': 'Int64', 'animalid':'str', 'rfid':'str', 
+                  'earpunch':'str', 'sex':'str', 'coatcolor':'str', 'dob':'str', 'dow':'str', 
+                  'project_name':'str', 'request_name':'str', 'assignment':'str','comments':'str'}
+
+    # names of requests to be updated
+    requests = updates['requests']
+    update_reqs = list(requests.keys())
+    n_requests = len(update_reqs)
+    assignments = []
+
+    # list/set to check for double-assigned rfids
+    double_assigned_rfids = []
+    processed_rfids = set()
+
+    for req_name in update_reqs:
+
+        print(f'Processing request: {req_name} \n')
+        # read in proposed assignments and shipped rats for the request
+        req_dict = requests[req_name]
+        req_type = req_dict['assignment_type']
+        req_trt = req_dict['treatment']
+        req_df = assign_df[assign_df['request_name'] == req_name]
+        assigned_rfids = set(req_df['rfid'])
+        proj_name = req_df['project_name'].tolist()[0]
+        assignment = req_df['assignment'].tolist()[0]
+        assignments.append(assignment)
+
+        if req_type == 'hsw_breeders':
+            pairs = pd.read_csv(req_dict['pairs_file'], \
+                dtype={'dam_rfid':str,'sire_rfid':str})
+            shipped_rfids = pairs['dam_rfid'].tolist() + \
+                pairs['sire_rfid'].tolist()
+        else:
+            req_ss = os.path.join(updates['ss_dir'], \
+                f'gen{updates['generation']}', req_dict['shipping_sheet'])
+            req_ss = pd.read_excel(req_ss, dtype={'rfid': str})
+            # subset to the assigned treatment if included in the shipping sheet
+            if req_trt is not None:
+                req_ss = req_ss[req_ss['treatment'] == req_trt]
+            
+            shipped_rfids = req_ss['rfid'].tolist()
+
+        # add metadata into the request's dictionary
+        req_dict['proj_name'] = proj_name
+        req_dict['assignment'] = assignment
+        req_dict['assign_df'] = req_df
+        req_dict['assigned_rfids'] = assigned_rfids
+        req_dict['shipped_rfids'] = shipped_rfids
+        requests[req_name] = req_dict
+
+        # check for duplicate assignments
+        for rfid in shipped_rfids:
+            if rfid in processed_rfids:
+                double_assigned_rfids.append(rfid)
+            else:
+                processed_rfids.add(rfid)
+
+    if len(double_assigned_rfids) > 0:
+        print('Some RFIDs are double-assigned!')
+        print(double_assigned_rfids)
+        double_assigned_ids =  assign_df[assign_df['rfid']\
+            .isin(double_assigned_rfids)]['animalid'].tolist()
+
+        animalid_doubles = {animalid: None for animalid in double_assigned_ids}
+        for animalid in double_assigned_ids:
+            assigned_to_reqs = []
+            for req in update_reqs:
+                req_dict = requests[req]
+
+                # get the shipped_rfids for THIS request (not the outer loop's)
+                if req_dict['assignment_type'] == 'hsw_breeders':
+                    pairs = pd.read_csv(req_dict['pairs_file'], 
+                        dtype={'dam_rfid':str,'sire_rfid':str})
+                    req_shipped_ids = pairs['dam_animalid'].tolist() + \
+                        pairs['sire_animalid'].tolist()
+                else:
+                    req_ss_path = os.path.join(updates['ss_dir'], 
+                        f'gen{updates["generation"]}', req_dict['shipping_sheet'])
+                    req_ss_data = pd.read_excel(req_ss_path, dtype={'rfid': str})
+                    req_trt_inner = req_dict['treatment']
+                    if req_trt_inner is not None:
+                        req_ss_data = req_ss_data[req_ss_data['treatment'] == req_trt_inner]
+                    req_shipped_ids = req_ss_data['animalid'].tolist()
+
+                if animalid in req_shipped_ids:
+                    assigned_to_reqs.append(req)
+            animalid_doubles[animalid] = assigned_to_reqs
+        pprint(animalid_doubles)
+        sys.exit()
+
+    # reset all assignments to 'not_assigned'
+    updated_df = assign_df.copy()
+    updated_df['project_name'] = 'not_assigned'
+    updated_df['request_name'] = 'not_assigned'
+    updated_df['assignment'] = 'not_assigned'
+
+    # mark assignments for each request
+    for req_name in update_reqs:
+        
+        req_dict = requests[req_name]
+        assignment = req_dict['assignment']
+        proj_name = req_dict['proj_name']
+        req_ids = req_dict['shipped_rfids'] # shipped IDs are the ACTUAL assignments
+
+        req_idx = updated_df[updated_df['rfid'].isin(req_ids)].index
+
+        updated_df.loc[req_idx, 'project_name'] = proj_name
+        updated_df.loc[req_idx, 'request_name'] = req_name
+        updated_df.loc[req_idx, 'assignment'] = assignment
+        updated_df.loc[req_idx, assignment] = 1
+
+        # save request-specific assignments to file
+        req_df = updated_df.loc[req_idx,]
+        req_df.sort_values('animalid', inplace=True)
+
+        if outdir is not None:
+            req_file = f'rattaca_gen{gen}_assign_{assignment}_{datestamp}.csv'
+            req_file = os.path.join(outdir, req_file)
+            req_df.to_csv(req_file, index=False, na_rep='')
+            print(f'\n{assignment} assignments saved to {req_file}')
+
+    # write all assignments to file
+    updated_df.sort_values('animalid', inplace=True)
+
+    assigned_rfids = updated_df[updated_df['assignment'] \
+        =='not_assigned'][['rfid','animalid']]
+    unassigned_rfids = updated_df[updated_df['assignment'] \
+        != 'not_assigned'][['rfid','animalid']]
+
+    if outdir is not None:
+        updated_file = os.path.join(outdir, \
+            f'rattaca_gen{gen}_assignments_{datestamp}.csv')
+        assigned_rfids_file = \
+            os.path.join(outdir, f'rattaca_gen{gen}_assigned_rfids_{datestamp}.csv')
+        unassigned_rfids_file = \
+            os.path.join(outdir, f'rattaca_gen{gen}_avail_rfids_{datestamp}.csv')
+        
+        updated_df.to_csv(updated_file, index=False, na_rep='')    
+        print(f'\nAll updated assignments saved to {updated_file} \n')
+
+        assigned_rfids.to_csv(assigned_rfids_file, index=False, na_rep='')
+        unassigned_rfids.to_csv(unassigned_rfids_file, index=False, na_rep='')
+    
+    print('Final assignment counts:')
+    print(updated_df[['assignment','sex']].value_counts())
+
+    return(updated_df)
+
 
 # UNTESTED
 def permute_random():
