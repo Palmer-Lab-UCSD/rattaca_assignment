@@ -90,7 +90,7 @@ def trait_groups(preds, trait, n_groups=2):
     assign_rattaca().
     
     Args:
-        preds: Path to a csv file of trait predictions. 
+        preds: csv path or pandas dataframe of trait predictions. 
         trait: The trait to group by. Must be the name of a column in the dataframe.
         n_groups: The number of groups to create. 2 will assign 'high'
             and 'low' groups, 3 will assign 'high', 'med', and 'low',
@@ -100,7 +100,11 @@ def trait_groups(preds, trait, n_groups=2):
         A list of group classifications.
     '''
     
-    # preds = pd.read_csv(preds)
+    if isinstance(preds, str):
+        preds = pd.read_csv(preds, dtype={'rfid': str})
+    else:
+        preds = preds
+
     preds = preds[trait].tolist()
     trait_quantiles = np.quantile(a=preds, q=np.linspace(0, 1, n_groups+1))
     
@@ -147,10 +151,10 @@ def plot_assignments(preds,
         File path to a csv or pandas dataframe of trait predictions including a 
         trait of interest (as produced by rattaca::get_ranks_zscores()).
 
-    assignments : str or dataframe
-        File path to a csv or pandas dataframe of RATTACA request assignments 
-        (as produced by rattaca_assign.assign.output_assignment_results())
-        
+    File path to a csv or pandas dataframe of RATTACA request assignments 
+        (as produced by rattaca_assign.assign.output_assignment_results() or 
+        rattaca_assign.assign.update_assignments())
+
     trait : str
         The name of the trait of interest. Must be the column header for the 
         trait predictions to be plotted.
@@ -202,16 +206,16 @@ def plot_assignments(preds,
         assigns = assignments
 
     if isinstance(preds, str):
-        preds = pd.read_csv(assignments, dtype={'rfid': str})
+        preds = pd.read_csv(preds, dtype={'rfid': str})
     else:
         preds = preds
     
     # define output file path if saving
     if outdir is not None:
         if jitter is not None:
-            out_stem = os.path.join(outdir, f'rattaca_gen{gen}_{trait_name}_assignment_jittered.png')
+            out_stem = os.path.join(outdir, f'rattaca_gen{gen}_{trait_name}_assignment_jittered')
         else:
-            out_stem = os.path.join(outdir, f'rattaca_gen{gen}_{trait_name}_assignment_.png')
+            out_stem = os.path.join(outdir, f'rattaca_gen{gen}_{trait_name}_assignment')
 
     # columns to process for plotting
     trait_rank = f'{trait}_rank'
@@ -293,7 +297,8 @@ def plot_assignments(preds,
     
     # save or display
     if outdir is not None:
-        plt.savefig(out_stem, dpi=300)
+        plt.savefig(f'{out_stem}.png', dpi=300)
+        plt.savefig(f'{out_stem}.pdf')
         plt.close()
     else:
         plt.show()
@@ -312,13 +317,14 @@ def density_assignments(preds,
     
     Parameters
     ----------
-    preds : str
-        File path to a csv dataframe of trait predictions including a trait 
-        of interest (as produced by rattaca::get_ranks_zscores()).
+    preds : str or dataframe
+        File path to a csv or pandas dataframe of trait predictions including a 
+        trait of interest (as produced by rattaca::get_ranks_zscores()).
 
-    assignments : str
-        File path to a csv dataframe of RATTACA request assignments (as 
-        produced by rattaca_assign.assign.output_assignment_results())
+    assignments : str or dataframe
+        File path to a csv or pandas dataframe of RATTACA request assignments 
+        (as produced by rattaca_assign.assign.output_assignment_results() or 
+        rattaca_assign.assign.update_assignments())
         
     trait : str
         The name of the trait of interest. Must be the column header for the 
@@ -354,12 +360,18 @@ def density_assignments(preds,
         trait_name = trait
 
     # read in files
-    preds_df = pd.read_csv(preds, dtype={'rfid': str})
-    assigns_df = pd.read_csv(assignments, dtype={'rfid': str})
+    if isinstance(preds, str):
+        preds_df = pd.read_csv(preds, dtype={'rfid': str})
+    else:
+        preds_df = preds
+    if isinstance(assignments, str):
+        assigns_df = pd.read_csv(assignments, dtype={'rfid': str})
+    else: 
+        assigns_df = assignments
     
     # define output file path if saving
     if outdir is not None:
-        out_stem = os.path.join(outdir, f'rattaca_gen{gen}_{trait_name}_assignment_density.png')
+        out_stem = os.path.join(outdir, f'rattaca_gen{gen}_{trait_name}_assignment_density')
 
     # columns to process for plotting
     zscore_col = f'{trait}_zscore'
@@ -475,7 +487,8 @@ def density_assignments(preds,
     
     # save or show
     if outdir is not None:
-        plt.savefig(out_stem, dpi=300)
+        plt.savefig(f'{out_stem}.png', dpi=300)
+        plt.savefig(f'{out_stem}.pdf')
         plt.close()
     else:
         plt.show()
