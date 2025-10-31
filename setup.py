@@ -10,7 +10,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'rattaca_assign=rattaca_assign.cli:main',
+            'rattaca_assign=rattaca_assign.main:main',
         ],
     },
     author='Benjamin Johnson (Palmer Lab), bbjohnson@health.ucsd.edu',
