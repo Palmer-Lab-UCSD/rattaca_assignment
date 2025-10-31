@@ -45,7 +45,9 @@ def main(args=None):
                 assignments = assignments_df,
                 preds = args.predictions[0],
                 outdir = args.output_dir[0],
-                request_map = args.request_map[0])
+                request_map = args.request_map[0],
+                summary = args.preds_summary[0])
+
 
         else:
             print('\nNo results saved to file. Set [-o OUTPUT_PREFIX] in the command line to save results \n')
@@ -88,7 +90,8 @@ def main(args=None):
             assignments = args.assignments[0],
             preds = args.predictions[0],
             outdir = args.output_dir[0],
-            request_map = args.request_map[0])
+            request_map = args.request_map[0],
+            summary = args.preds_summary[0])
 
 
 
