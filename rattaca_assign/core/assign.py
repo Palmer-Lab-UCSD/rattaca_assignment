@@ -2,11 +2,17 @@
 This is RATTACA's core assignment algorithm.
 
 This module contains the main assignment logic that distributes rats to 
-different projects based on their genetic predictions and other criteria.
+different projects based on their genetic predictions and other criteria, plus
+utility functions to format and save assignment results.
 '''
 
+import sys
 import pandas as pd
+import json
+import glob
 from random import choice
+from pprint import pprint
+from os import path
 from pathlib import Path
 from datetime import datetime
 from itertools import permutations
@@ -378,7 +384,7 @@ def output_assignment_results(args, assigned_requests, output_prefix=None):
     return(df)
 
 
-def output_assignment_preds(assignments, preds, outdir, requests, request_map=None, preds_dir=None):
+def output_assignment_preds(assignments, preds, outdir, requests, request_map=None, preds_dir=None, summary=None):
     '''
     Merge assignment results with predictions and save to CSV files formatted 
     for requesters.
@@ -386,7 +392,7 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
     Args:
     
         assignments: A csv path or Pandas dataframe with assignment mapped to 
-            requests, as output by output_assignment_results().
+            requests, as output by output_assignment_results() or update_assignments().
     
         preds: A csv path or Pandas dataframe with trait predictions, as output
             by the 'rattaca' R package. 
@@ -401,6 +407,9 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
         
         preds_dir: Optional. The directory path holding all prediction results.
             Only used if preds is not a path string.
+
+        summary: Optional. A csv path to a predictions summary file, as output by
+            rattaca::summarize_preds().
         
     Returns:
         A dataframe containing all assignment results.
@@ -422,6 +431,7 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
     if isinstance(request_map, str):
         request_map = pd.read_csv(request_map)
     
+    gen = assign_df['generation'][0]
 
     # format dates
     assign_df['dob'] = pd.to_datetime(assign_df['dob'], format='mixed').dt.date
@@ -439,7 +449,9 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
 
     # get request traits - handle both args and direct request inputs
     request_traits = {}
-
+    assign_traits = {}
+    assign_names = {}
+    
     # read in requests from a list
     for req in requests:
     
@@ -451,13 +463,18 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
                 req_trait = req_data['trait']
                 if req_trait is not None:
                     request_traits[req_name] = req_trait
+                assign_traits[req_name] = req_data['trait']
+                assign_names[req_name] = req_data['assignment_name']
+                
         # read from dictionaries
         elif isinstance(req, dict):
             req_name = req['request_name']
             req_trait = req['trait']
             if req_trait is not None:
                 request_traits[req_name] = req_trait
-
+            assign_traits[req_name] = req_data['trait']
+            assign_names[req_name] = req_data['assignment_name']
+            
     # process each request
     for req_name in request_traits.keys():
 
@@ -497,8 +514,9 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
             for trait in req_traits:
                 pred_cols.extend([trait, f'{trait}_rank', f'{trait}_zscore', f'{trait}_group'])
             
-            req_preds = req_preds[pred_cols]
-        
+            req_preds = req_preds[pred_cols].copy()
+            pred_cols.remove('rfid')
+            
         # or, extract predictions only for the assignment trait
         else:
             pred_cols = ['rfid', req_trait, f'{req_trait}_rank', f'{req_trait}_zscore']
@@ -513,7 +531,6 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
         out_cols = assign_cols_out + pred_cols + ['comments']
         req_preds = req_preds[out_cols]
 
-
         if Path(outdir).parts[-1] != 'request_results':
             req_outdir = os.path.join(outdir, 'request_results')
             os.makedirs(outdir, exist_ok = True)
@@ -523,10 +540,8 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
         req_outdir = os.path.join(req_outdir, req_name)
         os.makedirs(req_outdir, exist_ok = True)
 
-        # modify the request name for the output file
-        out_name = req_name.replace(f'rattaca_gen{gen}_', '')        
-        assign_outfile = os.path.join(req_outdir, f'rattaca_gen{gen}_results_{out_name}_BLIND.csv')
-        preds_outfile = os.path.join(req_outdir, f'rattaca_gen{gen}_results_{out_name}.csv')
+        assign_outfile = os.path.join(req_outdir, f'{req_name}_results_BLIND.csv')
+        preds_outfile = os.path.join(req_outdir, f'{req_name}_results.csv')
         
         req_assignments.to_csv(assign_outfile, index=False)
         req_preds.to_csv(preds_outfile, index=False)
@@ -539,6 +554,17 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
             traits_to_copy = [req_trait]
 
         print(f'Copying accessory predictions data for {req_name} \n')
+
+        if summary is not None:
+            if os.path.exists(summary):
+                req_summary = pd.read_csv(summary)
+                req_summary = req_summary[req_summary['trait'].isin(traits_to_copy)]
+                sumfile = os.path.join(req_outdir, f'{req_name}_summary.csv')
+                req_summary.to_csv(sumfile, index=False)
+                print(f'Copied {req_name} traits from summary file {summary} \n')
+            else:
+                print(f'Summary file not found: {summary} \n')
+
         for trait in traits_to_copy:
             trait_preds_dir = os.path.join(preds_dir, trait)
             power_analyses = glob.glob(os.path.join(trait_preds_dir, f'{trait}_test_power*_summary.csv'))
@@ -554,10 +580,36 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
             for file in trait_preds_dat:
                 if os.path.exists(file):  
                     shutil.copy(file, req_outdir)
-                    print(f'Copied: {os.path.basename(file)}')
+                    print(f'Copied: {os.path.basename(file)} \n')
                 else:
                     print(f'File not found: {file}')
             print(f'\n')
+
+        # save assignment plots
+        print(f'Plotting {assign_traits[req_name]} assignments for {req_name} \n')
+
+        plot_assignments(
+            preds = preds_df, 
+            assignments = assign_df,
+            trait = assign_traits[req_name], 
+            assignment_col = assign_names[req_name],
+            n_groups = 2, 
+            jitter = (0.02, 0.01),  # jitter for (background, assigned) points; set None to turn off jitter
+            gen = gen, 
+            random_seed = 1,
+            trait_name = None,
+            outdir = req_outdir)
+        
+        density_assignments(
+            preds = preds_df,
+            assignments = assign_df,
+            trait = assign_traits[req_name], 
+            assignment_col = assign_names[req_name],
+            n_groups = 2,
+            gen = gen, 
+            trait_name = None,
+            outdir = req_outdir)    
+    
 
 
 # UNTESTED
