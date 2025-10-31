@@ -51,21 +51,45 @@ pip install -e .
 
 ### Command Line Interface
 
-RATTACA_assignment can be run from the command line:
+RATTACA assignment can be run in full from the command line:
 
 ```bash
 #!/bin/bash 
 
-rattaca_assign -c colony_dataframe.csv -p predictions.csv -o /output/path/ -f output_prefix -r request1.json request2.json
+rattaca_assign new_assignments -c colony_dataframe.csv -p predictions.csv -m request_map.csv -s predictions_summary.csv -o /output/path/ -f output_prefix -r request1.json request2.json
 ```
 
 Command line options:
-- `-c, --colony_df`: Path to the HS West colony dataframe CSV for the current generation (required)
-- `-r, --request_files`: Path to one or more request files in JSON format (required)
-- `-p, --predictions`: Path to the RATTACA predictions CSV (optional)
-- `-o, --output_dir`: Output directory (optional)
-- `-f, --output_prefix`: Output filename prefix (optional)
-- `-e, --exclude_rfids`: Path to CSV file containing RFIDs to exclude from assignment (optional)
+- `step`: A positional argument to define which step in the assignment process to execute. Options include
+  * `new_assignments`: Assigns rats and saves formatted results.
+  * `rattaca_results`: Saves formatted results for all requests given a multi-request assignment file. Useful following manual assignments.
+  * `update_assignments`: Re-formats results to reflect any changes in assignments reflected in shipping sheets. Useful when executed assignments (actual rats assigned and shipped) differ from assignments previously proposed using `new_assignments`.
+- `-c, --colony_df`: Path to the HS West colony dataframe CSV for the current generation (required for new assignments)
+- `-r, --request_files`: Path to one or more request files in JSON format (required for new assignments)
+- `-p, --predictions`: Path to the RATTACA predictions CSV (optional for new assignments)
+- `-o, --output_dir`: Output directory (optional for new assignments)
+- `-f, --output_prefix`: Output filename prefix (optional for new assignments)
+- `-e, --exclude_rfids`: Path to CSV file containing RFIDs to exclude from assignment (optional for new assignments)
+- `-a, --assignments`: Path to CSV file containing previously proposed assignments (required for updating assignments)
+- `-u, --updates`: Path to JSON file specifying shipping sheets for assigned requests (required for updating assignments)
+- `-s, --predictions_summary`: Path to CSV 'predictions summary' file produced during trait prediction (required for new or updated results formatting). 
+- `-m, --request_map`: Path to CSV file outlining which trait predictions to include in saved results for each request (required for new and updated output formatting)
+
+To format per-request results following manual assignments:
+```bash
+#!/bin/bash 
+
+rattaca_assign rattaca_results -a all_assignments.csv -p predictions.csv -m request_map.csv -s predictions_summary.csv -o /output/path/ -r request1.json request2.json
+```
+(note that no output prefix is needed. It will be taken automatically from input files)
+
+To produce updated results following animal shipments:
+```bash
+#!/bin/bash 
+
+rattaca_assign update_assignments -a all_assignments.csv -u assignment_updates.json -o /output/path/ 
+```
+(note that no output prefix is needed. It will be taken automatically from input files)
 
 ### Python API
 
