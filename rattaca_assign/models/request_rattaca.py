@@ -57,6 +57,32 @@ class RATTACA(Request):
         # merge trait predictions into colony data
         self.setup_trait_metadata(args)
 
+        ## identify families with rats available for assignment by group
+        self.all_fams = self.colony_df['breederpair'].unique().tolist()
+
+        md_males_high = self.trait_metadata\
+            [(self.trait_metadata['sex'] == 'M') & \
+             (self.trait_metadata[f'{self.trait}_group'] == 'high')]
+        md_males_low = self.trait_metadata\
+            [(self.trait_metadata['sex'] == 'M') & \
+             (self.trait_metadata[f'{self.trait}_group'] == 'low')]
+        md_females_high = self.trait_metadata\
+            [(self.trait_metadata['sex'] == 'F') & \
+             (self.trait_metadata[f'{self.trait}_group'] == 'high')]
+        md_females_low = self.trait_metadata\
+            [(self.trait_metadata['sex'] == 'F') & \
+             (self.trait_metadata[f'{self.trait}_group'] == 'low')]
+        
+        self.fams_with_high_males = md_males_high['breederpair'].unique()
+        self.fams_with_low_males = md_males_low['breederpair'].unique()
+        self.fams_with_high_females = md_females_high['breederpair'].unique()
+        self.fams_with_low_females = md_females_low['breederpair'].unique()
+
+        self.fams_without_males = list(set(self.all_fams) - \
+            set(self.fams_with_high_males) - set(self.fams_with_low_males)) 
+        self.fams_without_females = list(set(self.all_fams) - \
+            set(self.fams_with_high_females) - set(self.fams_with_low_females)) 
+
         print(f'Initialized RATTACA request: {self.trait} for {self.project}')
 
 
@@ -276,6 +302,138 @@ class RATTACA(Request):
         }
         
 
+    # property to keep track of all breeder pairs that have been assigned to 
+    # open assignment groups
+    @property
+    def assigned_breederpairs(self):
+        '''
+        Get all breederpairs that have contributed rats to the request.
+        
+        Returns:
+            A dictionary with breederpair IDs of pairs with offspring that have
+            been assigned as to the request, grouped by sex and assignment group. 
+        '''
+
+        assigned_fams_m_high = {}
+        assigned_fams_m_low = {}
+        assigned_fams_f_high = {}
+        assigned_fams_f_low = {}
+
+        # update trait metadata to include only breederpairs that have assigned rats
+        current_metadata = self.trait_metadata[
+            self.trait_metadata['rfid'].isin(self.assigned_rats)]
+        
+        # subset assigned rats by assignment group
+        current_md_high = current_metadata[current_metadata['group'] == 'high']
+        current_md_low = current_metadata[current_metadata['group'] == 'low']
+        current_md_m_high = current_md_high[current_md_high['sex'] == 'M']
+        current_md_m_low = current_md_high[current_md_low['sex'] == 'M']
+        current_md_f_high = current_md_high[current_md_high['sex'] == 'F']
+        current_md_f_low = current_md_high[current_md_low['sex'] == 'F']
+        
+        # convert metadata dfs to dictionaries
+        # with key:breederpair and value:(rfid, sex)
+        if self.n_assigned['n_assigned_males_high'] > 0:
+            assigned_fams_m_high = current_md_m_high\
+                .groupby('breederpair')[['rfid', 'sex']]\
+                .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+        if self.n_assigned['n_assigned_males_low'] > 0:
+            assigned_fams_m_low = current_md_m_low\
+                .groupby('breederpair')[['rfid', 'sex']]\
+                .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+        if self.n_assigned['n_assigned_females_high'] > 0:
+            assigned_fams_f_high = current_md_f_high\
+                .groupby('breederpair')[['rfid', 'sex']]\
+                .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+        if self.n_assigned['n_assigned_females_low'] > 0:
+            assigned_fams_f_low = current_md_f_low\
+                .groupby('breederpair')[['rfid', 'sex']]\
+                .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+
+        out = {'assigned_fams_m_high' : assigned_fams_m_high,
+               'assigned_fams_m_low' : assigned_fams_m_low,
+               'assigned_fams_f_high' : assigned_fams_f_high,
+               'assigned_fams_f_low' : assigned_fams_f_low}
+            
+        return out
+
+    # property to keep track of all breeder pairs currently available
+    # to sample for assignment
+    @property
+    def available_breederpairs(self):
+        '''
+        Get all breederpairs from which rats can be, but have not yet 
+        been assigned.
+        
+        Returns:
+            A dictionary with breederpair IDs for pairs with offspring that are 
+            still available for assignment to the request.
+        '''
+
+        assigned_fams_m_high = list(self.assigned_breederpairs\
+            ['assigned_fams_m_high'].keys())
+        assigned_fams_m_low = list(self.assigned_breederpairs\
+            ['assigned_fams_m_low'].keys())
+        assigned_fams_f_high = list(self.assigned_breederpairs\
+            ['assigned_fams_f_high'].keys())
+        assigned_fams_f_low = list(self.assigned_breederpairs\
+            ['assigned_fams_f_low'].keys())
+
+        available_fams_m_high = set(self.fams_with_high_males) - \
+            set(assigned_fams_m_high) - set(self.fams_without_males)
+        available_fams_m_low = set(self.fams_with_low_males) - \
+            set(assigned_fams_m_low) - set(self.fams_without_males)
+        available_fams_f_high = set(self.fams_with_high_females) - \
+            set(assigned_fams_f_high) - set(self.fams_without_females)
+        available_fams_f_low = set(self.fams_with_low_females) - \
+            set(assigned_fams_f_low) - set(self.fams_without_females)
+
+        current_md_m_high = \
+            self.trait_metadata[self.trait_metadata['breederpair']\
+                .isin(available_fams_m_high)]
+        current_md_m_high = current_md_m_high\
+            [(current_md_m_high['sex'] == 'M') & \
+             (current_md_m_high['group'] == 'high')]
+        current_md_m_low = \
+            self.trait_metadata[self.trait_metadata['breederpair']\
+                .isin(available_fams_m_low)]
+        current_md_m_low = current_md_m_low\
+            [(current_md_m_low['sex'] == 'M') & \
+             (current_md_m_low['group'] == 'low')]
+        current_md_f_high = \
+            self.trait_metadata[self.trait_metadata['breederpair']\
+                .isin(available_fams_f_high)]
+        current_md_f_high = current_md_f_high\
+            [(current_md_f_high['sex'] == 'F') & \
+             (current_md_f_high['group'] == 'high')]
+        current_md_f_low = \
+            self.trait_metadata[self.trait_metadata['breederpair']\
+                .isin(available_fams_f_low)]
+        current_md_f_low = current_md_f_low\
+            [(current_md_f_low['sex'] == 'F') & \
+             (current_md_f_low['group'] == 'low')]
+
+        available_fams_m_high = \
+            current_md_m_high.groupby('breederpair')[['rfid', 'sex']]\
+            .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+        available_fams_m_low = \
+            current_md_m_low.groupby('breederpair')[['rfid', 'sex']]\
+            .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+        available_fams_f_high = \
+            current_md_f_high.groupby('breederpair')[['rfid', 'sex']]\
+            .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+        available_fams_f_low = \
+            current_md_f_low.groupby('breederpair')[['rfid', 'sex']]\
+            .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
+
+        out = {'available_fams_m_high': available_fams_m_high,
+               'available_fams_m_low': available_fams_m_low,
+               'available_fams_f_high': available_fams_f_high,
+               'available_fams_f_low': available_fams_f_low}
+
+        return out
+
+
     def is_satisfied_rattaca(self, sex=None, group=None):
         '''
         Check if a RATTACA request is satisfied.
@@ -363,7 +521,7 @@ class RATTACA(Request):
     def proposal(self, unavail_rats=None):
         '''
         Propose rats for assignment to this RATTACA request.
-        
+
         Args:
             unavail_rats: Optional dictionary of unavailable RFIDs.
             
