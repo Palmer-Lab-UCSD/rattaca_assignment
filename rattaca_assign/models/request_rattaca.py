@@ -322,15 +322,15 @@ class RATTACA(Request):
 
         # update trait metadata to include only breederpairs that have assigned rats
         current_metadata = self.trait_metadata[
-            self.trait_metadata['rfid'].isin(self.assigned_rats)]
+            self.trait_metadata['rfid'].isin(self.assigned_rats['assigned_total'])]
         
         # subset assigned rats by assignment group
-        current_md_high = current_metadata[current_metadata['group'] == 'high']
-        current_md_low = current_metadata[current_metadata['group'] == 'low']
+        current_md_high = current_metadata[current_metadata[f'{self.trait}_group'] == 'high']
+        current_md_low = current_metadata[current_metadata[f'{self.trait}_group'] == 'low']
         current_md_m_high = current_md_high[current_md_high['sex'] == 'M']
-        current_md_m_low = current_md_high[current_md_low['sex'] == 'M']
+        current_md_m_low = current_md_low[current_md_low['sex'] == 'M']
         current_md_f_high = current_md_high[current_md_high['sex'] == 'F']
-        current_md_f_low = current_md_high[current_md_low['sex'] == 'F']
+        current_md_f_low = current_md_low[current_md_low['sex'] == 'F']
         
         # convert metadata dfs to dictionaries
         # with key:breederpair and value:(rfid, sex)
@@ -372,13 +372,13 @@ class RATTACA(Request):
         '''
 
         assigned_fams_m_high = list(self.assigned_fams\
-            ['assigned_fams_m_high'].keys())
+            ['M_high'].keys())
         assigned_fams_m_low = list(self.assigned_fams\
-            ['assigned_fams_m_low'].keys())
+            ['M_low'].keys())
         assigned_fams_f_high = list(self.assigned_fams\
-            ['assigned_fams_f_high'].keys())
+            ['F_high'].keys())
         assigned_fams_f_low = list(self.assigned_fams\
-            ['assigned_fams_f_low'].keys())
+            ['F_low'].keys())
 
         available_fams_m_high = set(self.fams_with_high_males) - \
             set(assigned_fams_m_high) - set(self.fams_without_males)
@@ -394,25 +394,25 @@ class RATTACA(Request):
                 .isin(available_fams_m_high)]
         current_md_m_high = current_md_m_high\
             [(current_md_m_high['sex'] == 'M') & \
-             (current_md_m_high['group'] == 'high')]
+             (current_md_m_high[f'{self.trait}_group'] == 'high')]
         current_md_m_low = \
             self.trait_metadata[self.trait_metadata['breederpair']\
                 .isin(available_fams_m_low)]
         current_md_m_low = current_md_m_low\
             [(current_md_m_low['sex'] == 'M') & \
-             (current_md_m_low['group'] == 'low')]
+             (current_md_m_low['{self.trait}_group'] == 'low')]
         current_md_f_high = \
             self.trait_metadata[self.trait_metadata['breederpair']\
                 .isin(available_fams_f_high)]
         current_md_f_high = current_md_f_high\
             [(current_md_f_high['sex'] == 'F') & \
-             (current_md_f_high['group'] == 'high')]
+             (current_md_f_high['{self.trait}_group'] == 'high')]
         current_md_f_low = \
             self.trait_metadata[self.trait_metadata['breederpair']\
                 .isin(available_fams_f_low)]
         current_md_f_low = current_md_f_low\
             [(current_md_f_low['sex'] == 'F') & \
-             (current_md_f_low['group'] == 'low')]
+             (current_md_f_low['{self.trait}_group'] == 'low')]
 
         available_fams_m_high = \
             current_md_m_high.groupby('breederpair')[['rfid', 'sex']]\
@@ -480,13 +480,17 @@ class RATTACA(Request):
         a specific family for a given sex'''
 
         # get the number of rats (of the desired sex) already assigned to the family
-        n_sibs_assigned = \
-            sum(breederpair.count(fam) for key, breederpair in self.assigned_fams.items() if sex in key)
+        n_sibs_assigned = 0
+        for key, breederpair_dict in self.assigned_fams.items():
+            if sex in key:
+                if fam in breederpair_dict:
+                    n_sibs_assigned += len(breederpair_dict[fam])
 
         # available remainder is the max rats allowed per sex per fam minus the number already assigned
         n_remaining = self.max_per_sex - n_sibs_assigned
         
         return n_remaining
+
 
     def _rfid_metadata(self, rfid):
         '''Get relevant metadata for a specific RFID'''
@@ -530,7 +534,7 @@ class RATTACA(Request):
 
         # merge predictions with colony metadata
         all_metadata = self.colony_df.merge(
-            predictions_df[['rfid', self.trait]], on='rfid', how='right')
+            predictions_df[['rfid', self.trait]], on='rfid', how='inner')
 
         # sort by the requested trait, remove NAs
         self.trait_metadata = all_metadata.sort_values(
@@ -629,8 +633,16 @@ class RATTACA(Request):
         
         all_rattaca_requests = [self] + rattaca_requests if rattaca_requests is not None else self
 
+        # validate that both rats are available
+        for rfid in rfids_to_assign:
+            if rfid not in self.available_rfids:
+                print(f'WARNING: RFID {rfid} is not in available_rfids, skipping assignment')
+                return
+            if rfid not in self.trait_metadata['rfid'].values:
+                print(f'ERROR: RFID {rfid} not found in trait_metadata, skipping assignment')
+                return
 
-        # make sure rats are available
+            # make sure rats are available
         available_rfids = set(self.available_rfids)
         for rfid in rfids_to_assign:
             if rfid not in available_rfids:
@@ -658,9 +670,9 @@ class RATTACA(Request):
         # count the number of remaining siblings that could be assigned before
         # assigning the current rats
         remaining_min_rat_sibs_allowed = \
-            self._get_n_remaining_per_fam(sex = min_rat_sex, fam = min_rat_fam, max_per_sex = self.max_per_sex)
+            self._get_n_remaining_per_fam(sex = min_rat_sex, fam = min_rat_fam)
         remaining_max_rat_sibs_allowed = \
-            self._get_n_remaining_per_fam(sex = max_rat_sex, fam = max_rat_fam, max_per_sex = self.max_per_sex)
+            self._get_n_remaining_per_fam(sex = max_rat_sex, fam = max_rat_fam)
 
         if remaining_min_rat_sibs_allowed == 0:
             message = (
@@ -679,14 +691,14 @@ class RATTACA(Request):
         if max_rat_sex == 'M':
             if not self.is_satisfied_rattaca('M', 'high'):
                 self.assigned_males_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
-                self.assigned_fams['assigned_fams_m_high'].append(max_rat_fam)
+                self.assigned_fams['M_high'][max_rat_fam] = (max_rat, max_rat_sex)
                 self.remove([max_rat])
             else:
                 print(f'Cannot assign {max_rat}: Male/high group already satisfied')
         elif max_rat_sex == 'F':
             if not self.is_satisfied_rattaca('F', 'high'):
                 self.assigned_females_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
-                self.assigned_fams['assigned_fams_f_high'].append(max_rat_fam)
+                self.assigned_fams['F_high'][max_rat_fam] = (max_rat, max_rat_sex)
                 self.remove([max_rat])
             else:
                 print(f'Cannot assign {max_rat}: Female/high group already satisfied')
@@ -694,7 +706,7 @@ class RATTACA(Request):
         # check if remaining siblings should be prioritized for HSW breeders
         if breeders_request is not None:
             if n_max_rat_sibs == 1:
-                breeder_sib = max_rat_sibs['rfid']
+                breeder_sib = max_rat_data['sibs']
                 if max_rat_fam not in breeders_request.assigned_fams[max_rat_sex]:
                     breeders_request.assign_hsw_breeders(
                         rfids_to_assign = breeder_sib,
@@ -707,14 +719,14 @@ class RATTACA(Request):
         if min_rat_sex == 'M':
             if not self.is_satisfied_rattaca('M', 'low'):
                 self.assigned_males_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
-                self.assigned_fams['assigned_fams_m_low'].append(min_rat_fam)
+                self.assigned_fams['M_low'][min_rat_fam] = (min_rat, min_rat_sex)
                 self.remove([min_rat])
             else:
                 print(f'Cannot assign {min_rat}: Male/low group already satisfied')
         elif min_rat_sex == 'F':
             if not self.is_satisfied_rattaca('F', 'low'):
                 self.assigned_females_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
-                self.assigned_fams['assigned_fams_f_low'].append(min_rat_fam)
+                self.assigned_fams['F_low'][min_rat_fam] = (min_rat, min_rat_sex)
                 self.remove([min_rat])
             else:
                 print(f'Cannot assign {min_rat}: Female/low group already satisfied')
@@ -722,7 +734,7 @@ class RATTACA(Request):
         # check if remaining siblings should be prioritized for HSW breeders
         if breeders_request is not None:
             if n_min_rat_sibs == 1:
-                breeder_sib = min_rat_sibs['rfid']
+                breeder_sib = min_rat_data['sibs']
                 if min_rat_fam not in breeders_request.assigned_fams[min_rat_sex]:
                     breeders_request.assign_hsw_breeders(
                         rfids_to_assign = breeder_sib,
@@ -782,8 +794,8 @@ class RATTACA(Request):
                 fam_males = fam_df[fam_df['sex']=='M']['rfid'].tolist()
                 fam_females = fam_df[fam_df['sex']=='F']['rfid'].tolist()
 
-                n_avail_males = self._get_n_remaining_per_fam(sex = 'M', fam = fam, max_per_sex = self.max_per_sex)
-                n_avail_females = self._get_n_remaining_per_fam(sex = 'F', fam = fam, max_per_sex = self.max_per_sex)
+                n_avail_males = self._get_n_remaining_per_fam(sex = 'M', fam = fam)
+                n_avail_females = self._get_n_remaining_per_fam(sex = 'F', fam = fam)
 
                 if n_avail_males < 1:
                     self.remove(fam_males)
