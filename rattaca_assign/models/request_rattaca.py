@@ -40,6 +40,7 @@ class RATTACA(Request):
             self.n_requested_females_low = req_metadata['n_rats']['female']['low']
             self.n_requested_high = self.n_requested_males_high + self.n_requested_females_high
             self.n_requested_low = self.n_requested_males_low + self.n_requested_females_low
+            self.max_per_sex = req_metadata['max_per_sex']
             self.min_age = req_metadata['min_age']
             self.max_age = req_metadata['max_age']
             date_str = str(req_metadata['receive_date']) if req_metadata['receive_date'] is not None else None
@@ -305,7 +306,7 @@ class RATTACA(Request):
     # property to keep track of all breeder pairs that have been assigned to 
     # open assignment groups
     @property
-    def assigned_breederpairs(self):
+    def assigned_fams(self):
         '''
         Get all breederpairs that have contributed rats to the request.
         
@@ -350,17 +351,17 @@ class RATTACA(Request):
                 .groupby('breederpair')[['rfid', 'sex']]\
                 .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
 
-        out = {'assigned_fams_m_high' : assigned_fams_m_high,
-               'assigned_fams_m_low' : assigned_fams_m_low,
-               'assigned_fams_f_high' : assigned_fams_f_high,
-               'assigned_fams_f_low' : assigned_fams_f_low}
+        out = {'M_high' : assigned_fams_m_high,
+               'M_low' : assigned_fams_m_low,
+               'F_high' : assigned_fams_f_high,
+               'F_low' : assigned_fams_f_low}
             
         return out
 
     # property to keep track of all breeder pairs currently available
     # to sample for assignment
     @property
-    def available_breederpairs(self):
+    def available_fams(self):
         '''
         Get all breederpairs from which rats can be, but have not yet 
         been assigned.
@@ -370,13 +371,13 @@ class RATTACA(Request):
             still available for assignment to the request.
         '''
 
-        assigned_fams_m_high = list(self.assigned_breederpairs\
+        assigned_fams_m_high = list(self.assigned_fams\
             ['assigned_fams_m_high'].keys())
-        assigned_fams_m_low = list(self.assigned_breederpairs\
+        assigned_fams_m_low = list(self.assigned_fams\
             ['assigned_fams_m_low'].keys())
-        assigned_fams_f_high = list(self.assigned_breederpairs\
+        assigned_fams_f_high = list(self.assigned_fams\
             ['assigned_fams_f_high'].keys())
-        assigned_fams_f_low = list(self.assigned_breederpairs\
+        assigned_fams_f_low = list(self.assigned_fams\
             ['assigned_fams_f_low'].keys())
 
         available_fams_m_high = set(self.fams_with_high_males) - \
@@ -426,10 +427,10 @@ class RATTACA(Request):
             current_md_f_low.groupby('breederpair')[['rfid', 'sex']]\
             .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
 
-        out = {'available_fams_m_high': available_fams_m_high,
-               'available_fams_m_low': available_fams_m_low,
-               'available_fams_f_high': available_fams_f_high,
-               'available_fams_f_low': available_fams_f_low}
+        out = {'M_high': available_fams_m_high,
+               'M_low': available_fams_m_low,
+               'F_high': available_fams_f_high,
+               'F_low': available_fams_f_low}
 
         return out
 
@@ -472,6 +473,44 @@ class RATTACA(Request):
         elif sex == 'F' and group == 'low':
             return self.n_remaining['n_remaining_females_low']
 
+
+    # count how many remaining assignments are allowed per family x sex
+    def _get_n_remaining_per_fam(self, sex, fam):
+        '''Get the number of assignments that are still allowed to be drawn from
+        a specific family for a given sex'''
+
+        # get the number of rats (of the desired sex) already assigned to the family
+        n_sibs_assigned = \
+            sum(breederpair.count(fam) for key, breederpair in self.assigned_fams.items() if sex in key)
+
+        # available remainder is the max rats allowed per sex per fam minus the number already assigned
+        n_remaining = self.max_per_sex - n_sibs_assigned
+        
+        return n_remaining
+
+    def _rfid_metadata(self, rfid):
+        '''Get relevant metadata for a specific RFID'''
+
+        id_df = self.trait_metadata[self.trait_metadata['rfid'] == rfid].iloc[0]
+        
+        id_sex = id_df['sex']
+        id_fam = id_df['breederpair']
+        id_group = id_df[f'{self.trait}_group']
+        id_pred = id_df[self.trait]
+
+        # get RFIDs of same-sex siblings
+        sib_ids = self.trait_metadata\
+            [(self.trait_metadata['breederpair'] == id_fam) & 
+             (self.trait_metadata['sex'] == id_sex) & 
+             (self.trait_metadata['rfid'] != rfid)]['rfid'].tolist()
+        out = {'rfid': rfid,
+            'sex': id_sex,
+            'group': id_group,
+            'pred': id_pred,
+            'fam': id_fam,
+            'sibs': sib_ids}
+        
+        return out
 
     def setup_trait_metadata(self, args):
         '''
@@ -571,108 +610,182 @@ class RATTACA(Request):
         return proposed_delta, [min_rat, max_rat]
 
 
-    def assign_rattaca(self, rfids_to_assign, breeders_request = None):
+    def assign_rattaca(self, rfids_to_assign, rattaca_requests = None, breeders_request = None):
         '''
         Assign rats to a RATTACA project.
         
         Args:
             rfids_to_assign: List of RFIDs to assign, ordered [min_rat, max_rat].
-            breeders_request: HSWBreeders request, to which remaining animals will be assigned by priority if needed
+            
+            rattaca_requests: A list of all other open RATTACA request objects 
+                (not including this specific request).
+            
+            breeders_request: HSWBreeders request, to which remaining animals 
+                will be assigned by priority if needed
         '''
 
         if not isinstance(rfids_to_assign, list) or len(rfids_to_assign) != 2:
             raise TypeError('rfids_to_assign must be a list with two RFID elements')
         
+        all_rattaca_requests = [self] + rattaca_requests if rattaca_requests is not None else self
+
+
         # make sure rats are available
         available_rfids = set(self.available_rfids)
         for rfid in rfids_to_assign:
             if rfid not in available_rfids:
-                print(f'RFID {rfid} is not available for assignment, skipping')
+                print(f'RFID {rfid} is not available for assignment')
                 
-        # get rat info
+        # get rat metadata
         min_rat = rfids_to_assign[0]
         max_rat = rfids_to_assign[1]
-        
-        min_rat_data = self.trait_metadata[self.trait_metadata['rfid'] == min_rat].iloc[0]
-        max_rat_data = self.trait_metadata[self.trait_metadata['rfid'] == max_rat].iloc[0]
+        min_rat_data = self._rfid_metadata(min_rat)
+        max_rat_data = self._rfid_metadata(max_rat)
         
         min_rat_sex = min_rat_data['sex']
-        min_rat_group = min_rat_data[f'{self.trait}_group']
-        min_rat_pred = min_rat_data[self.trait]
+        min_rat_fam = min_rat_data['fam']
+        min_rat_group = min_rat_data['group']
+        min_rat_pred = min_rat_data['pred']
         
         max_rat_sex = max_rat_data['sex']
-        max_rat_group = max_rat_data[f'{self.trait}_group']
-        max_rat_pred = max_rat_data[self.trait]
+        max_rat_fam = max_rat_data['fam']
+        max_rat_group = max_rat_data['group']
+        max_rat_pred = max_rat_data['pred']
+        
+        n_min_rat_sibs = len(min_rat_data['sibs'])
+        n_max_rat_sibs = len(max_rat_data['sibs'])
+
+        # count the number of remaining siblings that could be assigned before
+        # assigning the current rats
+        remaining_min_rat_sibs_allowed = \
+            self._get_n_remaining_per_fam(sex = min_rat_sex, fam = min_rat_fam, max_per_sex = self.max_per_sex)
+        remaining_max_rat_sibs_allowed = \
+            self._get_n_remaining_per_fam(sex = max_rat_sex, fam = max_rat_fam, max_per_sex = self.max_per_sex)
+
+        if remaining_min_rat_sibs_allowed == 0:
+            message = (
+                f'RFID {rfid} cannot be assigned. \n'
+                f'Breederpair {min_rat_fam} has already contributed {self.max_per_sex} {min_rat_sex} animals to {self.request_name} \n')
+            print(message)
+            exit
+        if remaining_max_rat_sibs_allowed == 0:
+            message = (
+                f'RFID {rfid} cannot be assigned. \n'
+                f'Breederpair {max_rat_fam} has already contributed {self.max_per_sex} {max_rat_sex} animals to {self.request_name} \n')
+            print(message)
+            exit
         
         # assign the high rat
         if max_rat_sex == 'M':
             if not self.is_satisfied_rattaca('M', 'high'):
                 self.assigned_males_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
+                self.assigned_fams['assigned_fams_m_high'].append(max_rat_fam)
                 self.remove([max_rat])
             else:
                 print(f'Cannot assign {max_rat}: Male/high group already satisfied')
         elif max_rat_sex == 'F':
             if not self.is_satisfied_rattaca('F', 'high'):
                 self.assigned_females_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
+                self.assigned_fams['assigned_fams_f_high'].append(max_rat_fam)
                 self.remove([max_rat])
             else:
                 print(f'Cannot assign {max_rat}: Female/high group already satisfied')
         
+        # check if remaining siblings should be prioritized for HSW breeders
+        if breeders_request is not None:
+            if n_max_rat_sibs == 1:
+                breeder_sib = max_rat_sibs['rfid']
+                if max_rat_fam not in breeders_request.assigned_fams[max_rat_sex]:
+                    breeders_request.assign_hsw_breeders(
+                        rfids_to_assign = breeder_sib,
+                        non_breeder_requests = all_rattaca_requests)
+
+        # remove siblings from availability
+        self._update_available_rats(by='fam')
+
         # assign the low rat
         if min_rat_sex == 'M':
             if not self.is_satisfied_rattaca('M', 'low'):
                 self.assigned_males_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
+                self.assigned_fams['assigned_fams_m_low'].append(min_rat_fam)
                 self.remove([min_rat])
             else:
                 print(f'Cannot assign {min_rat}: Male/low group already satisfied')
         elif min_rat_sex == 'F':
             if not self.is_satisfied_rattaca('F', 'low'):
                 self.assigned_females_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
+                self.assigned_fams['assigned_fams_f_low'].append(min_rat_fam)
                 self.remove([min_rat])
             else:
                 print(f'Cannot assign {min_rat}: Female/low group already satisfied')
         
+        # check if remaining siblings should be prioritized for HSW breeders
+        if breeders_request is not None:
+            if n_min_rat_sibs == 1:
+                breeder_sib = min_rat_sibs['rfid']
+                if min_rat_fam not in breeders_request.assigned_fams[min_rat_sex]:
+                    breeders_request.assign_hsw_breeders(
+                        rfids_to_assign = breeder_sib,
+                        non_breeder_requests = all_rattaca_requests)
+
+        # remove siblings from availability
+        self._update_available_rats(by='fam')
+
         # update delta
         self.delta += max_rat_pred - min_rat_pred
         
         # update available rats list
-        self._update_available_rats()
+        self._update_available_rats(by='group')
         
 
-    def _update_available_rats(self):
+    def _update_available_rats(self, by=['group','fam']):
         '''Update available rats list based on satisfied groups.'''
-        if self.is_satisfied_rattaca('M', 'high'):
-            high_male_rfids = self.trait_metadata[
-                (self.trait_metadata['sex'] == 'M') & 
-                (self.trait_metadata[f'{self.trait}_group'] == 'high')
-            ]['rfid'].tolist()
-            for rfid in high_male_rfids:
-                if rfid in self.available_rfids:
-                    self.available_rfids.remove(rfid)
-                    
-        if self.is_satisfied_rattaca('M', 'low'):
-            low_male_rfids = self.trait_metadata[
-                (self.trait_metadata['sex'] == 'M') & 
-                (self.trait_metadata[f'{self.trait}_group'] == 'low')
-            ]['rfid'].tolist()
-            for rfid in low_male_rfids:
-                if rfid in self.available_rfids:
-                    self.available_rfids.remove(rfid)
-                    
-        if self.is_satisfied_rattaca('F', 'high'):
-            high_female_rfids = self.trait_metadata[
-                (self.trait_metadata['sex'] == 'F') & 
-                (self.trait_metadata[f'{self.trait}_group'] == 'high')
-            ]['rfid'].tolist()
-            for rfid in high_female_rfids:
-                if rfid in self.available_rfids:
-                    self.available_rfids.remove(rfid)
-                    
-        if self.is_satisfied_rattaca('F', 'low'):
-            low_female_rfids = self.trait_metadata[
-                (self.trait_metadata['sex'] == 'F') & 
-                (self.trait_metadata[f'{self.trait}_group'] == 'low')
-            ]['rfid'].tolist()
-            for rfid in low_female_rfids:
-                if rfid in self.available_rfids:
-                    self.available_rfids.remove(rfid)
+        
+        if by == 'group':
+            if self.is_satisfied_rattaca('M', 'high'):
+                high_male_rfids = self.trait_metadata[
+                    (self.trait_metadata['sex'] == 'M') & 
+                    (self.trait_metadata[f'{self.trait}_group'] == 'high')]['rfid'].tolist()
+                for rfid in high_male_rfids:
+                    if rfid in self.available_rfids:
+                        self.available_rfids.remove(rfid)
+                        
+            if self.is_satisfied_rattaca('M', 'low'):
+                low_male_rfids = self.trait_metadata[
+                    (self.trait_metadata['sex'] == 'M') & 
+                    (self.trait_metadata[f'{self.trait}_group'] == 'low')]['rfid'].tolist()
+                for rfid in low_male_rfids:s
+                    if rfid in self.available_rfids:
+                        self.available_rfids.remove(rfid)
+                        
+            if self.is_satisfied_rattaca('F', 'high'):
+                high_female_rfids = self.trait_metadata[
+                    (self.trait_metadata['sex'] == 'F') & 
+                    (self.trait_metadata[f'{self.trait}_group'] == 'high')]['rfid'].tolist()
+                for rfid in high_female_rfids:
+                    if rfid in self.available_rfids:
+                        self.available_rfids.remove(rfid)
+                        
+            if self.is_satisfied_rattaca('F', 'low'):
+                low_female_rfids = self.trait_metadata[
+                    (self.trait_metadata['sex'] == 'F') & 
+                    (self.trait_metadata[f'{self.trait}_group'] == 'low')]['rfid'].tolist()
+                for rfid in low_female_rfids:
+                    if rfid in self.available_rfids:
+                        self.available_rfids.remove(rfid)
+        
+        # check availability by family x sex
+        if by == 'fam':
+            all_fams = self.trait_metadata['breederpair'].unique().tolist()
+            for fam in all_fams:
+                fam_df = self.trait_metadata[self.trait_metadata['breederpair']==fam]
+                fam_males = fam_df[fam_df['sex']=='M']['rfid'].tolist()
+                fam_females = fam_df[fam_df['sex']=='F']['rfid'].tolist()
+
+                n_avail_males = self._get_n_remaining_per_fam(sex = 'M', fam = fam, max_per_sex = self.max_per_sex)
+                n_avail_females = self._get_n_remaining_per_fam(sex = 'F', fam = fam, max_per_sex = self.max_per_sex)
+
+                if n_avail_males < 1:
+                    self.remove(fam_males)
+                if n_avail_females < 1:
+                    self.remove(fam_females)
