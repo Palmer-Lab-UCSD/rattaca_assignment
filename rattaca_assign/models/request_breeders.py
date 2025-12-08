@@ -37,8 +37,7 @@ class HSWBreeders(Request):
 
         # initialize lists of breeder pairs with rats available for assignment
         # as breeders
-        self.available_fams_m = {}
-        self.available_fams_f = {}
+        self.available_fams = {}
         
         self.all_fams = self.colony_df['breederpair'].unique().tolist()
         fams_with_males = self.colony_df.groupby('breederpair').\
@@ -172,8 +171,8 @@ class HSWBreeders(Request):
 
         final_males = {}
         final_females = {}
-        avail_males = self.available_breederpairs['available_fams_m']
-        avail_females = self.available_breederpairs['available_fams_f']
+        avail_males = self.available_fams['M']
+        avail_females = self.available_fams['F']
         
         # randomly sample one male from each available breeder pair
         for fam, males in avail_males.items():
@@ -352,8 +351,8 @@ class HSWBreeders(Request):
                     f'''Could not find breeder pair {family} in the colony
                     dataframe''')
 
-            available_m_fams = self.available_breederpairs['available_fams_m']
-            available_f_fams = self.available_breederpairs['available_fams_f']
+            available_m_fams = self.available_fams['M']
+            available_f_fams = self.available_fams['F']
 
             if sex is None:
                 if family in self.fams_with_males and \
@@ -483,7 +482,7 @@ class HSWBreeders(Request):
     # property to keep track of all breeder pairs currently available
     # to sample for assignment
     @property
-    def assigned_breederpairs(self):
+    def assigned_fams(self):
         '''
         Get all breederpairs that have contributed rats to HSW breeders.
         
@@ -529,15 +528,15 @@ class HSWBreeders(Request):
                         if fam not in assigned_fams_f:
                             assigned_fams_f[fam] = ()
                         assigned_fams_f[fam] += (rfid, sex)
-        out = {'assigned_fams_m' : assigned_fams_m, \
-            'assigned_fams_f' : assigned_fams_f}
+        out = {'M' : assigned_fams_m, \
+            'F' : assigned_fams_f}
             
         return out
 
     # property to keep track of all breeder pairs currently available
     # to sample for assignment
     @property
-    def available_breederpairs(self):
+    def available_fams(self):
         '''
         Get all breederpairs from which HSW breeders can be, but have not yet 
         been assigned.
@@ -550,10 +549,8 @@ class HSWBreeders(Request):
             still needed.
         '''
 
-        assigned_fams_m = list(self.assigned_breederpairs\
-            ['assigned_fams_m'].keys())
-        assigned_fams_f = list(self.assigned_breederpairs\
-            ['assigned_fams_f'].keys())
+        assigned_fams_m = list(self.assigned_fams['M'].keys())
+        assigned_fams_f = list(self.assigned_fams['F'].keys())
 
         available_fams_m = set(self.fams_with_males) - \
             set(assigned_fams_m) - set(self.fams_without_males)
@@ -578,8 +575,8 @@ class HSWBreeders(Request):
             current_metadata_f.groupby('breederpair')[['rfid', 'sex']]\
             .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
 
-        out = {'available_fams_m': available_fams_m,
-               'available_fams_f': available_fams_f}
+        out = {'M': available_fams_m,
+               'F': available_fams_f}
 
         return out
 
@@ -599,7 +596,7 @@ class HSWBreeders(Request):
         '''
 
         assigned_m_fams = \
-            list(self.assigned_breederpairs['assigned_fams_m'].keys())
+            list(self.assigned_fams['M'].keys())
         m_metadata = self.trait_metadata[self.trait_metadata['sex']=='M']
         assigned_m_fams_md = \
             m_metadata[m_metadata['breederpair'].isin(assigned_m_fams)]
@@ -629,7 +626,7 @@ class HSWBreeders(Request):
         '''
 
         assigned_f_fams = \
-            list(self.assigned_breederpairs['assigned_fams_f'].keys())
+            list(self.assigned_fams['F'].keys())
         f_metadata = self.trait_metadata[self.trait_metadata['sex']=='F']
         assigned_f_fams_md = \
             f_metadata[f_metadata['breederpair'].isin(assigned_f_fams)]
@@ -656,7 +653,7 @@ class HSWBreeders(Request):
         '''
 
         assigned_m_fams = \
-            list(self.assigned_breederpairs['assigned_fams_m'].keys())
+            list(self.assigned_fams['M'].keys())
         m_metadata = self.trait_metadata[self.trait_metadata['sex']=='M']
         current_m_metadata = \
             m_metadata[~m_metadata['breederpair'].isin(assigned_m_fams)]
@@ -683,7 +680,7 @@ class HSWBreeders(Request):
         '''
 
         assigned_f_fams = \
-            list(self.assigned_breederpairs['assigned_fams_f'].keys())
+            list(self.assigned_fams['F'].keys())
         f_metadata = self.trait_metadata[self.trait_metadata['sex']=='F']
         current_f_metadata = \
             f_metadata[~f_metadata['breederpair'].isin(assigned_f_fams)]
