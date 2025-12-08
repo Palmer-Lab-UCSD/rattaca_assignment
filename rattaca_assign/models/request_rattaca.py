@@ -754,7 +754,7 @@ class RATTACA(Request):
                 low_male_rfids = self.trait_metadata[
                     (self.trait_metadata['sex'] == 'M') & 
                     (self.trait_metadata[f'{self.trait}_group'] == 'low')]['rfid'].tolist()
-                for rfid in low_male_rfids:s
+                for rfid in low_male_rfids:
                     if rfid in self.available_rfids:
                         self.available_rfids.remove(rfid)
                         

@@ -140,6 +140,7 @@ Example json file for a RATTACA project requesting 10 male and 10 female rats wi
   "min_age": 40,
   "max_age": 50,
   "receive_date": 20250101,
+  "max_per_sex": 1,
   "n_rats": {
     "total": 20,
     "male": {
