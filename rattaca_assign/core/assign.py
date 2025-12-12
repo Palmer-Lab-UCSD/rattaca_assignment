@@ -56,16 +56,16 @@ def run_assignments(args):
     non_breeder_requests = []
     non_rattaca_requests = []
     
-    # Add breeder request if it exists
+    # add breeder request if it exists
     if breeders_requested and breeder_request:
         all_requests.append(breeder_request)
         
-    # Add RATTACA requests
+    # add RATTACA requests
     if rattaca_requested and rattaca_requests:
         all_requests.extend(rattaca_requests)
         non_breeder_requests.extend(rattaca_requests)
         
-    # Add random requests
+    # add random requests
     if random_requested and random_requests:
         all_requests.extend(random_requests)
         non_breeder_requests.extend(random_requests)
@@ -92,14 +92,14 @@ def run_assignments(args):
     if rattaca_requested and rattaca_requests:
         # continue assigning RATTACA rats until all RATTACA requests are satisfied
         rattaca_assignment(
-            rattaca_requests=rattaca_requests, 
-            non_rattaca_requests=non_rattaca_requests)  # Fixed the syntax error here
+            rattaca_requests = rattaca_requests, 
+            non_rattaca_requests = non_rattaca_requests)
     
-    # STAGE 3: Complete breeder assignments after RATTACA
+    # STAGE 3: complete breeder assignments after RATTACA
     if breeders_requested and breeder_request:
         breeder_requests = [breeder_request]  # Create a list for consistency with the rest of the code
         if not breeder_request.is_satisfied():
-            # Find any new priority breeders after RATTACA assignments
+            # find any new priority breeders after RATTACA assignments
             new_priority_breeders = prioritize_breeders(
                 breeder_request=breeder_request,
                 non_breeder_requests=non_breeder_requests
@@ -110,16 +110,16 @@ def run_assignments(args):
                 for request in random_requests:
                     request.remove(new_priority_breeders)
             
-            # For families that have contributed to RATTACA, ensure a male and female 
+            # for families that have contributed to RATTACA, ensure a male and female 
             # from each family goes to breeding if available
             # complete_breeding_assignments(breeder_request) - defunct function, fix this section
     
-    # STAGE 4: Only now assign to random projects
+    # STAGE 4: assign to random projects
     if random_requested and random_requests:
-        # At this point, all RATTACA and priority breeder assignments are complete
-        # Random projects get what's left
+        # at this point, all RATTACA and priority breeder assignments are complete
+        # random projects get what's left
         for random_req in random_requests:
-            # Ensure random projects only use rats from families that have already
+            # ensure random projects only use rats from families that have already
             # contributed to RATTACA or breeders when possible
             assign_to_random_projects(random_req, rattaca_requests, breeder_requests)
     
@@ -255,18 +255,18 @@ def permute_one_round(open_requests):
     if n_open_requests == 0:
         return []
     
-    # Initialize variables to store stats from the eventual best permutation
+    # initialize variables to store stats from the eventual best permutation
     best_delta = 0
     best_permutation = None
     best_rfids = None
     
-    # Try all possible permutations of request orders
+    # try all possible permutations of request orders
     for permuted_order in permutations(range(n_open_requests)):
         proposed_rfids = {}
         permutation_delta = 0
         project_deltas = []
 
-        # For each project request in the current permutation... 
+        # for each project request in the current permutation... 
         for current_request_idx in permuted_order:
             current_request = open_requests[current_request_idx]
             # ...propose animals for assignment to the project
@@ -275,13 +275,13 @@ def permute_one_round(open_requests):
             project_deltas.append(project_delta)
             proposed_rfids[current_request_idx] = proposal_rfids
 
-        # Keep the proposed rfids from the permutation that maximizes delta
+        # keep the proposed rfids from the permutation that maximizes delta
         if permutation_delta > best_delta:
             best_delta = permutation_delta
             best_permutation = permuted_order
             best_rfids = proposed_rfids
 
-    # Assign rats to each request in the permuted order that maximizes delta
+    # assign rats to each request in the permuted order that maximizes delta
     assigned_this_round = []
     for project_index in best_permutation:
         project_to_assign = open_requests[project_index]

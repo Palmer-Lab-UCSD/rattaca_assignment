@@ -84,7 +84,7 @@ class RATTACA(Request):
         self.fams_without_females = list(set(self.all_fams) - \
             set(self.fams_with_high_females) - set(self.fams_with_low_females)) 
 
-        print(f'Initialized RATTACA request: {self.trait} for {self.project}')
+        print(f'Initialized RATTACA request: {self.trait} for {self.request_name}')
 
 
     # function to manually assign rats to a projects as needed
@@ -137,7 +137,8 @@ class RATTACA(Request):
                     print(f'Cannot assign {rfid}: Female/low group already satisfied')
         
         # update available rats list
-        self._update_available_rats()
+        self._update_available_rats(by='group')
+        self._update_available_rats(by='fam')
         
 
     # function to classify RFIDs into high/low groups
@@ -207,8 +208,28 @@ class RATTACA(Request):
             k: (v['sex'], v[self.trait], v[f'{self.trait}_group']) 
             for k, v in current_metadata.items()
         }
+
+        available_males = {k: v for k, v in available_rats.items() if v[0] == 'M'}
+        available_females = {k: v for k, v in available_rats.items() if v[0] == 'F'}
+        available_high = {k: v for k, v in available_rats.items() if v[2] == 'high'}
+        available_low = {k: v for k, v in available_rats.items() if v[2] == 'low'}
+        available_high_males = {k: v for k, v in available_rats.items() if (v[0] == 'M') & (v[2] == 'high')}
+        available_low_males = {k: v for k, v in available_rats.items() if (v[0] == 'M') & (v[2] == 'low')}
+        available_high_females = {k: v for k, v in available_rats.items() if (v[0] == 'F') & (v[2] == 'high')}
+        available_low_females = {k: v for k, v in available_rats.items() if (v[0] == 'F') & (v[2] == 'low')}
         
-        return available_rats
+        out = {
+            'total': available_rats,
+            'M': available_males,
+            'F': available_females,
+            'high': available_high,
+            'low': available_low,
+            'M_high': available_high_males,
+            'M_low': available_low_males,
+            'F_high': available_high_females,
+            'F_low': available_low_females}
+            
+        return out
     
     @property
     def available_males(self):
@@ -261,15 +282,15 @@ class RATTACA(Request):
         n_assigned_total = len(self.assigned_rats['assigned_total'])
 
         return {
-            'n_assigned_males_high': n_assigned_males_high,
-            'n_assigned_males_low': n_assigned_males_low,
-            'n_assigned_females_high': n_assigned_females_high,
-            'n_assigned_females_low': n_assigned_females_low,
-            'n_assigned_high': n_assigned_high,
-            'n_assigned_low': n_assigned_low,
-            'n_assigned_males': n_assigned_males,
-            'n_assigned_females': n_assigned_females,
-            'n_assigned_total': n_assigned_total
+            'M_high': n_assigned_males_high,
+            'M_low': n_assigned_males_low,
+            'F_high': n_assigned_females_high,
+            'F_low': n_assigned_females_low,
+            'high': n_assigned_high,
+            'low': n_assigned_low,
+            'M': n_assigned_males,
+            'F': n_assigned_females,
+            'total': n_assigned_total
         }
 
     @property
@@ -280,28 +301,58 @@ class RATTACA(Request):
         Returns:
             A dictionary with counts of remaining assignments by category.
         '''
-        n_remaining_males_high = max(0, self.n_requested_males_high - self.n_assigned['n_assigned_males_high'])
-        n_remaining_males_low = max(0, self.n_requested_males_low - self.n_assigned['n_assigned_males_low'])
-        n_remaining_females_high = max(0, self.n_requested_females_high - self.n_assigned['n_assigned_females_high'])
-        n_remaining_females_low = max(0, self.n_requested_females_low - self.n_assigned['n_assigned_females_low'])
-        n_remaining_high = max(0, self.n_requested_high - self.n_assigned['n_assigned_high'])
-        n_remaining_low = max(0, self.n_requested_low - self.n_assigned['n_assigned_low'])
-        n_remaining_males = max(0, self.n_requested_males - self.n_assigned['n_assigned_males'])
-        n_remaining_females = max(0, self.n_requested_females - self.n_assigned['n_assigned_females'])
-        n_remaining_total = max(0, self.n_requested_total - self.n_assigned['n_assigned_total'])
+        n_remaining_males_high = max(0, self.n_requested_males_high - self.n_assigned['M_high'])
+        n_remaining_males_low = max(0, self.n_requested_males_low - self.n_assigned['M_low'])
+        n_remaining_females_high = max(0, self.n_requested_females_high - self.n_assigned['F_high'])
+        n_remaining_females_low = max(0, self.n_requested_females_low - self.n_assigned['F_low'])
+        n_remaining_high = max(0, self.n_requested_high - self.n_assigned['high'])
+        n_remaining_low = max(0, self.n_requested_low - self.n_assigned['low'])
+        n_remaining_males = max(0, self.n_requested_males - self.n_assigned['M'])
+        n_remaining_females = max(0, self.n_requested_females - self.n_assigned['F'])
+        n_remaining_total = max(0, self.n_requested_total - self.n_assigned['total'])
 
         return {
-            'n_remaining_males_high': n_remaining_males_high,
-            'n_remaining_males_low': n_remaining_males_low,
-            'n_remaining_females_high': n_remaining_females_high,
-            'n_remaining_females_low': n_remaining_females_low,
-            'n_remaining_high': n_remaining_high,
-            'n_remaining_low': n_remaining_low,
-            'n_remaining_males': n_remaining_males,
-            'n_remaining_females': n_remaining_females,
-            'n_remaining_total': n_remaining_total
+            'M_high': n_remaining_males_high,
+            'M_low': n_remaining_males_low,
+            'F_high': n_remaining_females_high,
+            'F_low': n_remaining_females_low,
+            'high': n_remaining_high,
+            'low': n_remaining_low,
+            'M': n_remaining_males,
+            'F': n_remaining_females,
+            'total': n_remaining_total
         }
+
+    @property
+    def n_available(self):
+        '''
+        Get counts of remaining available rats by category.
         
+        Returns:
+            A dictionary with counts of remaining available rats by category.
+        '''
+        n_avail_males_high = len(self.available_rats['M_high'])
+        n_avail_males_low = len(self.available_rats['M_low'])
+        n_avail_females_high = len(self.available_rats['F_high'])
+        n_avail_females_low = len(self.available_rats['F_low'])
+        n_avail_high = len(self.available_rats['high'])
+        n_avail_low = len(self.available_rats['low'])
+        n_avail_males = len(self.available_rats['M'])
+        n_avail_females = len(self.available_rats['F'])
+        n_avail_total = len(self.available_rats['total'])
+
+        return {
+            'M_high': n_avail_males_high,
+            'M_low': n_avail_males_low,
+            'F_high': n_avail_females_high,
+            'F_low': n_avail_females_low,
+            'high': n_avail_high,
+            'low': n_avail_low,
+            'M': n_avail_males,
+            'F': n_avail_females,
+            'total': n_avail_total
+        }
+
 
     # property to keep track of all breeder pairs that have been assigned to 
     # open assignment groups
@@ -334,19 +385,19 @@ class RATTACA(Request):
         
         # convert metadata dfs to dictionaries
         # with key:breederpair and value:(rfid, sex)
-        if self.n_assigned['n_assigned_males_high'] > 0:
+        if self.n_assigned['M_high'] > 0:
             assigned_fams_m_high = current_md_m_high\
                 .groupby('breederpair')[['rfid', 'sex']]\
                 .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
-        if self.n_assigned['n_assigned_males_low'] > 0:
+        if self.n_assigned['M_low'] > 0:
             assigned_fams_m_low = current_md_m_low\
                 .groupby('breederpair')[['rfid', 'sex']]\
                 .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
-        if self.n_assigned['n_assigned_females_high'] > 0:
+        if self.n_assigned['F_high'] > 0:
             assigned_fams_f_high = current_md_f_high\
                 .groupby('breederpair')[['rfid', 'sex']]\
                 .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
-        if self.n_assigned['n_assigned_females_low'] > 0:
+        if self.n_assigned['F_low'] > 0:
             assigned_fams_f_low = current_md_f_low\
                 .groupby('breederpair')[['rfid', 'sex']]\
                 .apply(lambda x: tuple(list(zip(x['rfid'], x['sex'])))).to_dict()
@@ -455,23 +506,23 @@ class RATTACA(Request):
         '''Get the number of assignments that remain to be filled 
         for a specific group.'''
         if sex is None and group is None:
-            return self.n_remaining['n_remaining_total']
+            return self.n_remaining['total']
         if sex == 'M' and group is None:
-            return self.n_remaining['n_remaining_males']
+            return self.n_remaining['M']
         elif sex == 'F' and group is None:
-            return self.n_remaining['n_remaining_females']
+            return self.n_remaining['F']
         if group == 'high' and sex is None:
-            return self.n_remaining['n_remaining_high']
+            return self.n_remaining['high']
         if group == 'low' and sex is None:
-            return self.n_remaining['n_remaining_low']
+            return self.n_remaining['low']
         if sex == 'M' and group == 'high':
-            return self.n_remaining['n_remaining_males_high']
+            return self.n_remaining['M_high']
         elif sex == 'M' and group == 'low':
-            return self.n_remaining['n_remaining_males_low']
+            return self.n_remaining['M_low']
         elif sex == 'F' and group == 'high':
-            return self.n_remaining['n_remaining_females_high']
+            return self.n_remaining['F_high']
         elif sex == 'F' and group == 'low':
-            return self.n_remaining['n_remaining_females_low']
+            return self.n_remaining['F_low']
 
 
     # count how many remaining assignments are allowed per family x sex
@@ -687,21 +738,29 @@ class RATTACA(Request):
             print(message)
             exit
         
+        # track assignment success/failure
+        assignment_made = False
+
         # assign the high rat
         if max_rat_sex == 'M':
             if not self.is_satisfied_rattaca('M', 'high'):
                 self.assigned_males_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
                 self.assigned_fams['M_high'][max_rat_fam] = (max_rat, max_rat_sex)
                 self.remove([max_rat])
+                assignment_made = True
             else:
                 print(f'Cannot assign {max_rat}: Male/high group already satisfied')
+                self.remove([max_rat])
+
         elif max_rat_sex == 'F':
             if not self.is_satisfied_rattaca('F', 'high'):
                 self.assigned_females_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
                 self.assigned_fams['F_high'][max_rat_fam] = (max_rat, max_rat_sex)
                 self.remove([max_rat])
+                assignment_made = True
             else:
                 print(f'Cannot assign {max_rat}: Female/high group already satisfied')
+                self.remove([max_rat])
         
         # check if remaining siblings should be prioritized for HSW breeders
         if breeders_request is not None:
@@ -721,16 +780,21 @@ class RATTACA(Request):
                 self.assigned_males_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
                 self.assigned_fams['M_low'][min_rat_fam] = (min_rat, min_rat_sex)
                 self.remove([min_rat])
+                assignment_made = True
             else:
                 print(f'Cannot assign {min_rat}: Male/low group already satisfied')
+                self.remove([min_rat])
+
         elif min_rat_sex == 'F':
             if not self.is_satisfied_rattaca('F', 'low'):
                 self.assigned_females_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
                 self.assigned_fams['F_low'][min_rat_fam] = (min_rat, min_rat_sex)
                 self.remove([min_rat])
+                assignment_made = True
             else:
                 print(f'Cannot assign {min_rat}: Female/low group already satisfied')
-        
+                self.remove([min_rat])
+
         # check if remaining siblings should be prioritized for HSW breeders
         if breeders_request is not None:
             if n_min_rat_sibs == 1:
@@ -740,15 +804,14 @@ class RATTACA(Request):
                         rfids_to_assign = breeder_sib,
                         non_breeder_requests = all_rattaca_requests)
 
-        # remove siblings from availability
-        self._update_available_rats(by='fam')
-
         # update delta
-        self.delta += max_rat_pred - min_rat_pred
+        if assignment_made:
+            self.delta += max_rat_pred - min_rat_pred
         
         # update available rats list
         self._update_available_rats(by='group')
-        
+        self._update_available_rats(by='fam')
+
 
     def _update_available_rats(self, by=['group','fam']):
         '''Update available rats list based on satisfied groups.'''
