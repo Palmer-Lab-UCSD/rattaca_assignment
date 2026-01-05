@@ -74,6 +74,7 @@ Command line options:
 - `-u, --updates`: Path to JSON file specifying shipping sheets for assigned requests (required for updating assignments)
 - `-s, --predictions_summary`: Path to CSV 'predictions summary' file produced during trait prediction (required for new or updated results formatting). 
 - `-m, --request_map`: Path to CSV file outlining which trait predictions to include in saved results for each request (required for new and updated output formatting)
+- `-v --verbose`: An optional flag to include if verbose output is desired (as for debugging).
 
 To format per-request results following manual assignments:
 ```bash

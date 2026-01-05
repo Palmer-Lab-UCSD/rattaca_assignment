@@ -93,7 +93,8 @@ def run_assignments(args):
         # continue assigning RATTACA rats until all RATTACA requests are satisfied
         rattaca_assignment(
             rattaca_requests = rattaca_requests, 
-            non_rattaca_requests = non_rattaca_requests)
+            non_rattaca_requests = non_rattaca_requests,
+            verbose = args.verbose)
     
     # STAGE 3: complete breeder assignments after RATTACA
     if breeders_requested and breeder_request:
@@ -135,7 +136,7 @@ def run_assignments(args):
     return result_requests
 
 
-def rattaca_assignment(rattaca_requests, non_rattaca_requests = None):
+def rattaca_assignment(rattaca_requests, non_rattaca_requests = None, verbose = False):
     '''
     Run RATTACA assignment algorithm until all requests are satisfied.
     
@@ -152,19 +153,23 @@ def rattaca_assignment(rattaca_requests, non_rattaca_requests = None):
         print(f'RATTACA ASSIGNMENT ROUND {assignment_round}')
         
         open_requests = [req for req in rattaca_requests if req.can_continue()]
-        print(f'open_requests:')
-        for req in open_requests: 
-            print(f'\t{req.request_name}')
-            print('\n'.join([f'\t\t{l}' for l in pformat(req.n_assigned).splitlines()]))
+        
+        # print assignment counts + availability counts if verbose output selected
+        if verbose:
+            print(f'Assignment counts for open requests:')
+            for req in open_requests: 
+                print(f'\t{req.request_name}')
+                print('\n'.join([f'\t\t{l}' for l in pformat(req.n_assigned).splitlines()]))
 
-            if len(open_requests) == 1:
-                print('\n'.join([f'\t\t{l}' for l in pformat(req.n_available).splitlines()]))
+                if len(open_requests) == 1:
+                    print(f'Availability counts for {req.request_name}:')
+                    print('\n'.join([f'\t\t{l}' for l in pformat(req.n_available).splitlines()]))
 
         if not open_requests:
             break
 
         # run one round of RATTACA permutation assginment
-        assigned_rfids = permute_one_round(open_requests)
+        assigned_rfids = permute_one_round(open_requests, verbose = verbose)
         
         # after each round, update breeder requests to reflect the new assignments
         if non_rattaca_requests and assigned_rfids:
@@ -250,7 +255,7 @@ def permute_rattaca(all_requests):
     return all_requests
 
 
-def permute_one_round(open_requests):
+def permute_one_round(open_requests, verbose = False):
     '''
     Perform one round of permutation-based assignment for non-breeder requests.
     
@@ -289,8 +294,9 @@ def permute_one_round(open_requests):
                 project_deltas.append(project_delta)
                 proposed_rfids[current_request_idx] = proposal_rfids
 
-            print(f'project_deltas: {project_deltas}')
-            print(f'permutation_delta: {permutation_delta}')
+            if verbose:
+                print(f'project_deltas: {project_deltas}')
+                print(f'permutation_delta: {permutation_delta}')
             
             # keep the proposed rfids from the permutation that maximizes delta
             if permutation_delta > best_delta:
