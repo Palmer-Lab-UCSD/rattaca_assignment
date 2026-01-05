@@ -11,7 +11,7 @@ import pandas as pd
 import json
 import glob
 from random import choice
-from pprint import pprint
+from pprint import pprint, pformat
 from os import path
 from pathlib import Path
 from datetime import datetime
@@ -147,14 +147,22 @@ def rattaca_assignment(rattaca_requests, non_rattaca_requests = None):
     '''
 
     assignment_round = 0
-    while any(not request.is_satisfied() for request in rattaca_requests):
+    while any(request.can_continue() for request in rattaca_requests):
         assignment_round += 1
         print(f'RATTACA ASSIGNMENT ROUND {assignment_round}')
         
-        open_requests = [req for req in rattaca_requests if not req.is_satisfied()]
+        open_requests = [req for req in rattaca_requests if req.can_continue()]
+        print(f'open_requests:')
+        for req in open_requests: 
+            print(f'\t{req.request_name}')
+            print('\n'.join([f'\t\t{l}' for l in pformat(req.n_assigned).splitlines()]))
+
+            if len(open_requests) == 1:
+                print('\n'.join([f'\t\t{l}' for l in pformat(req.n_available).splitlines()]))
+
         if not open_requests:
             break
-            
+
         # run one round of RATTACA permutation assginment
         assigned_rfids = permute_one_round(open_requests)
         
@@ -162,6 +170,7 @@ def rattaca_assignment(rattaca_requests, non_rattaca_requests = None):
         if non_rattaca_requests and assigned_rfids:
             for request in non_rattaca_requests:
                 request.remove(assigned_rfids)
+
 
 def permute_rattaca(all_requests):
     '''
@@ -255,46 +264,62 @@ def permute_one_round(open_requests):
     if n_open_requests == 0:
         return []
     
-    # initialize variables to store stats from the eventual best permutation
-    best_delta = 0
-    best_permutation = None
-    best_rfids = None
-    
-    # try all possible permutations of request orders
-    for permuted_order in permutations(range(n_open_requests)):
-        proposed_rfids = {}
-        permutation_delta = 0
-        project_deltas = []
+    # permute possible assignments across multiple open requests
+    if n_open_requests > 1:
 
-        # for each project request in the current permutation... 
-        for current_request_idx in permuted_order:
-            current_request = open_requests[current_request_idx]
-            # ...propose animals for assignment to the project
-            project_delta, proposal_rfids = current_request.proposal(proposed_rfids) 
-            permutation_delta += project_delta
-            project_deltas.append(project_delta)
-            proposed_rfids[current_request_idx] = proposal_rfids
-
-        # keep the proposed rfids from the permutation that maximizes delta
-        if permutation_delta > best_delta:
-            best_delta = permutation_delta
-            best_permutation = permuted_order
-            best_rfids = proposed_rfids
-
-    # assign rats to each request in the permuted order that maximizes delta
-    assigned_this_round = []
-    for project_index in best_permutation:
-        project_to_assign = open_requests[project_index]
-        other_projects = [proj for i, proj in enumerate(open_requests) 
-                          if i != project_index]
+        # initialize variables to store stats from the eventual best permutation
+        best_delta = 0
+        best_permutation = None
+        best_rfids = None
         
-        assign_rfids = best_rfids[project_index]
-        if assign_rfids and not project_to_assign.is_satisfied():
-            project_to_assign.assign(assign_rfids)
-            assigned_this_round.extend(assign_rfids)
-            for rm_from_project in other_projects:
-                rm_from_project.remove(assign_rfids)
+        # try all possible permutations of request orders
+        for permuted_order in permutations(range(n_open_requests)):
+            print(f'permuted_order: {permuted_order}')
+            proposed_rfids = {}
+            permutation_delta = 0
+            project_deltas = []
+            assigned_this_round = []
+
+            # for each project request in the current permutation... 
+            for current_request_idx in permuted_order:
+                current_request = open_requests[current_request_idx]
+                # ...propose animals for assignment to the project
+                project_delta, proposal_rfids = current_request.proposal(proposed_rfids) 
+                permutation_delta += project_delta
+                project_deltas.append(project_delta)
+                proposed_rfids[current_request_idx] = proposal_rfids
+
+            print(f'project_deltas: {project_deltas}')
+            print(f'permutation_delta: {permutation_delta}')
+            
+            # keep the proposed rfids from the permutation that maximizes delta
+            if permutation_delta > best_delta:
+                best_delta = permutation_delta
+                best_permutation = permuted_order
+                best_rfids = proposed_rfids
+
+        # assign rats to each request in the permuted order that maximizes delta
+        # assigned_this_round = []
+        for project_index in best_permutation:
+            project_to_assign = open_requests[project_index]
+            other_projects = [proj for i, proj in enumerate(open_requests) 
+                            if i != project_index]
+            
+            assign_rfids = best_rfids[project_index]
+            if assign_rfids and not project_to_assign.is_satisfied():
+                project_to_assign.assign(assign_rfids)
+                assigned_this_round.extend(assign_rfids)
+                for rm_from_project in other_projects:
+                    rm_from_project.remove(assign_rfids)
     
+    # when only one request remains open, simply assign to the request
+    if n_open_requests == 1:
+        last_request = open_requests[0]
+        print(f'last_request: {last_request}')
+        project_delta, assign_rfids = last_request.proposal() 
+        print(f'assign_rfids: {assign_rfids}')
+        assigned_this_round = last_request.assign(assign_rfids)
+
     return assigned_this_round
 
 
