@@ -34,12 +34,17 @@ class RATTACA(Request):
             req_metadata = json.load(rf)
             self.trait = req_metadata['trait']
             self.project = req_metadata['project']
-            self.n_requested_males_high = req_metadata['n_rats']['male']['high']
-            self.n_requested_males_low = req_metadata['n_rats']['male']['low']
-            self.n_requested_females_high = req_metadata['n_rats']['female']['high']
-            self.n_requested_females_low = req_metadata['n_rats']['female']['low']
-            self.n_requested_high = self.n_requested_males_high + self.n_requested_females_high
-            self.n_requested_low = self.n_requested_males_low + self.n_requested_females_low
+            self.n_requested = {
+                'M_high': req_metadata['n_rats']['male']['high'],
+                'M_low': req_metadata['n_rats']['male']['low'],
+                'F_high': req_metadata['n_rats']['female']['high'],
+                'F_low': req_metadata['n_rats']['female']['low'],
+                'M': req_metadata['n_rats']['male']['total'],
+                'F': req_metadata['n_rats']['female']['total'],
+                'total': req_metadata['n_rats']['total']
+                }
+            self.n_requested['high'] = self.n_requested['M_high'] + self.n_requested['F_high']
+            self.n_requested['low'] = self.n_requested['M_low'] + self.n_requested['F_low']
             self.max_per_sex = req_metadata['max_per_sex']
             self.min_age = req_metadata['min_age']
             self.max_age = req_metadata['max_age']
@@ -112,29 +117,29 @@ class RATTACA(Request):
             
             # determine assignment destination
             if rat_sex == 'M' and rat_group == 'high':
-                if not self.is_satisfied_rattaca('M', 'high'):
+                if not self.is_satisfied_sample('M', 'high'):
                     self.assigned_males_high[rfid] = (rat_sex, rat_pred, rat_group)
                     self.remove([rfid])
                 else:
-                    print(f'Cannot assign {rfid}: Male/high group already satisfied')
+                    print(f'Cannot assign {rfid}: Male/high group already satisfied for {self.request_name}')
             elif rat_sex == 'M' and rat_group == 'low':
-                if not self.is_satisfied_rattaca('M', 'low'):
+                if not self.is_satisfied_sample('M', 'low'):
                     self.assigned_males_low[rfid] = (rat_sex, rat_pred, rat_group)
                     self.remove([rfid])
                 else:
-                    print(f'Cannot assign {rfid}: Male/low group already satisfied')
+                    print(f'Cannot assign {rfid}: Male/low group already satisfied for {self.request_name}')
             elif rat_sex == 'F' and rat_group == 'high':
-                if not self.is_satisfied_rattaca('F', 'high'):
+                if not self.is_satisfied_sample('F', 'high'):
                     self.assigned_females_high[rfid] = (rat_sex, rat_pred, rat_group)
                     self.remove([rfid])
                 else:
-                    print(f'Cannot assign {rfid}: Female/high group already satisfied')
+                    print(f'Cannot assign {rfid}: Female/high group already satisfied for {self.request_name}')
             elif rat_sex == 'F' and rat_group == 'low':
-                if not self.is_satisfied_rattaca('F', 'low'):
+                if not self.is_satisfied_sample('F', 'low'):
                     self.assigned_females_low[rfid] = (rat_sex, rat_pred, rat_group)
                     self.remove([rfid])
                 else:
-                    print(f'Cannot assign {rfid}: Female/low group already satisfied')
+                    print(f'Cannot assign {rfid}: Female/low group already satisfied for {self.request_name}')
         
         # update available rats list
         self._update_available_rats(by='group')
@@ -301,15 +306,15 @@ class RATTACA(Request):
         Returns:
             A dictionary with counts of remaining assignments by category.
         '''
-        n_remaining_males_high = max(0, self.n_requested_males_high - self.n_assigned['M_high'])
-        n_remaining_males_low = max(0, self.n_requested_males_low - self.n_assigned['M_low'])
-        n_remaining_females_high = max(0, self.n_requested_females_high - self.n_assigned['F_high'])
-        n_remaining_females_low = max(0, self.n_requested_females_low - self.n_assigned['F_low'])
-        n_remaining_high = max(0, self.n_requested_high - self.n_assigned['high'])
-        n_remaining_low = max(0, self.n_requested_low - self.n_assigned['low'])
-        n_remaining_males = max(0, self.n_requested_males - self.n_assigned['M'])
-        n_remaining_females = max(0, self.n_requested_females - self.n_assigned['F'])
-        n_remaining_total = max(0, self.n_requested_total - self.n_assigned['total'])
+        n_remaining_males_high = max(0, self.n_requested['M_high'] - self.n_assigned['M_high'])
+        n_remaining_males_low = max(0, self.n_requested['M_low'] - self.n_assigned['M_low'])
+        n_remaining_females_high = max(0, self.n_requested['F_high'] - self.n_assigned['F_high'])
+        n_remaining_females_low = max(0, self.n_requested['F_low'] - self.n_assigned['F_low'])
+        n_remaining_high = max(0, self.n_requested['high'] - self.n_assigned['high'])
+        n_remaining_low = max(0, self.n_requested['low'] - self.n_assigned['low'])
+        n_remaining_males = max(0, self.n_requested['M'] - self.n_assigned['M'])
+        n_remaining_females = max(0, self.n_requested['F'] - self.n_assigned['F'])
+        n_remaining_total = max(0, self.n_requested['total'] - self.n_assigned['total'])
 
         return {
             'M_high': n_remaining_males_high,
@@ -486,44 +491,110 @@ class RATTACA(Request):
         return out
 
 
-    def is_satisfied_rattaca(self, sex=None, group=None):
+    def is_satisfied_rattaca(self):
         '''
-        Check if a RATTACA request is satisfied.
+        Check if a RATTACA request is satisfied. Specifically, checks that ALL 
+        sex x group assignments are satisfied for the request.
+                    
+        Returns:
+            Boolean indicating if the request is satisfied.
+        '''
+        satisfied_samples = [
+            self.is_satisfied_sample('M', 'high'),
+            self.is_satisfied_sample('M', 'low'),
+            self.is_satisfied_sample('F', 'high'),
+            self.is_satisfied_sample('F', 'low')]
+        
+        return sum(satisfied_samples) == 4
+        
+    
+    def is_satisfied_sample(self, sex, group):
+        '''
+        Check if a specific sex x group sample is satisfied.
+
+        A group assignment is satisfied when
+            1. The number of requested rats have been assigned, or
+            2. No further rats are available to assign to the sample.
         
         Args:
-            sex: Optional sex filter (M/F).
-            group: Optional group filter (high/low).
-            
+            sex: (M/F).
+            group: (high/low).
+
         Returns:
-            Boolean indicating if request is satisfied.
+            Boolean indicating if the sample is satisfied.
         '''
-        n_remaining = self._get_n_remaining(sex, group)
-        return n_remaining == 0
+
+        # any sample with completed assignments is satisfied
+        if self.n_remaining[f'{sex}_{group}'] == 0:
+            return True
+
+        # for samples with remaining assignments,
+        # if no further rats are available to be assigned, assert that the sample is satisfied
+        if self.n_available[f'{sex}_{group}'] > 0:
+            return False
+        else:
+            return True
+
+
+    def can_continue(self):
+        '''
+        Check if this request can continue making assignments.
         
+        A request can continue if at least one sex/group combination
+        still needs rats AND has rats available.
+        
+        Returns:
+            Boolean indicating if request can continue.
+        '''
+        for sex in ['M', 'F']:
+            for group in ['high', 'low']:
+                n_remaining = self.n_remaining[f'{sex}_{group}']
+                n_available = self.n_available[f'{sex}_{group}']
+                
+                # if a group needs rats AND has rats available, the request can continue 
+                # (it remains open to further assignments)
+                if n_remaining > 0 and n_available > 0:
+                    return True
+
+        # either fully satisfied, or no unsatisfied groups have available rats
+        return False
 
     # function to count how many assignments remain per group
     def _get_n_remaining(self, sex=None, group=None):
         '''Get the number of assignments that remain to be filled 
         for a specific group.'''
-        if sex is None and group is None:
-            return self.n_remaining['total']
-        if sex == 'M' and group is None:
-            return self.n_remaining['M']
-        elif sex == 'F' and group is None:
-            return self.n_remaining['F']
-        if group == 'high' and sex is None:
-            return self.n_remaining['high']
-        if group == 'low' and sex is None:
-            return self.n_remaining['low']
-        if sex == 'M' and group == 'high':
-            return self.n_remaining['M_high']
-        elif sex == 'M' and group == 'low':
-            return self.n_remaining['M_low']
-        elif sex == 'F' and group == 'high':
-            return self.n_remaining['F_high']
-        elif sex == 'F' and group == 'low':
-            return self.n_remaining['F_low']
 
+        # specify the sample group being checked
+        if sex is None and group is None:
+            check_sample = 'total'
+        if sex == 'M' and group is None:
+            check_sample = 'M'
+        elif sex == 'F' and group is None:
+            check_sample = 'F'
+        if group == 'high' and sex is None:
+            check_sample = 'high'
+        if group == 'low' and sex is None:
+            check_sample = 'low'
+        if sex == 'M' and group == 'high':
+            check_sample = 'M_high'
+        elif sex == 'M' and group == 'low':
+            check_sample = 'M_low'
+        elif sex == 'F' and group == 'high':
+            check_sample = 'F_high'
+        elif sex == 'F' and group == 'low':
+            check_sample = 'F_low'
+
+        # count the number of rats available to be assigned to the group
+        n_available = self.n_available[check_sample]
+
+        # count the number of rats remaining to be assigned to the group
+        n_remaining = self.n_remaining[check_sample]
+
+        # if no rats are available, assert that none remain to be assigned
+        if n_available == 0:
+            n_remaining = 0
+
+        return n_remaining
 
     # count how many remaining assignments are allowed per family x sex
     def _get_n_remaining_per_fam(self, sex, fam):
@@ -599,13 +670,13 @@ class RATTACA(Request):
         self.trait_metadata = self.trait_metadata[~self.trait_metadata['rfid'].isin(exclude_rfids)]
 
         # drop any groups that aren't requested
-        if self.n_requested_males == 0:
+        if self.n_requested['M'] == 0:
             self.trait_metadata = self.trait_metadata[self.trait_metadata['sex'] != 'M']
-        if self.n_requested_females == 0:
+        if self.n_requested['F'] == 0:
             self.trait_metadata = self.trait_metadata[self.trait_metadata['sex'] != 'F']
-        if self.n_requested_high == 0:
+        if self.n_requested['high'] == 0:
             self.trait_metadata = self.trait_metadata[self.trait_metadata[f'{self.trait}_group'] != 'high']
-        if self.n_requested_low == 0:
+        if self.n_requested['low'] == 0:
             self.trait_metadata = self.trait_metadata[self.trait_metadata[f'{self.trait}_group'] != 'low']
 
         # create a list of rats available for assignment, ordered by trait prediction
@@ -633,36 +704,77 @@ class RATTACA(Request):
         else:
             raise TypeError('unavail_rats must be either a list, a dictionary, or None')
         
+        high_available = True
+        low_available = True
+
         # initial indexes to start search for extreme available rats
         i = 0    # first element is the rat with the max trait value
         j = len(self.available_rfids) - 1 # last element has the min trait value
 
         # make sure enough rats are available to make a proposal
-        if len(self.available_rfids) < 2 or all(rfid in unavail_rfids for rfid in self.available_rfids):
+        if len(self.available_rfids) == 0 or all(rfid in unavail_rfids for rfid in self.available_rfids):
+            print('WARNING: No further rats are available for assignment')
             return 0, []
-            
+  
         # find rats that are currently available
         available = [rfid for rfid in self.available_rfids if rfid not in unavail_rfids]
-        if len(available) < 2:
-            return 0, []
-            
-        # get the highest and lowest predictions from available rats
         available_df = self.trait_metadata[self.trait_metadata['rfid'].isin(available)]
-        max_rat = available_df.iloc[0]['rfid']  # first row (highest prediction)
-        min_rat = available_df.iloc[-1]['rfid']  # last row (lowest prediction)
-        
-        # get prediction values
-        max_rat_pred = available_df[available_df['rfid'] == max_rat][self.trait].iloc[0]
-        min_rat_pred = available_df[available_df['rfid'] == min_rat][self.trait].iloc[0]
-        
-        # calculate delta for this proposal
-        delta_iter = max_rat_pred - min_rat_pred
+
+        # if only one rat is available, propose it as a singleton
+        if len(available) == 1:
+
+            rat = available_df.iloc[0]['rfid']
+            rat_sex = available_df.iloc[0]['sex']
+            rat_group = available_df.iloc[0][f'{self.trait}_group']
+            rat_pred = available_df.iloc[0][self.trait]
+            
+            if rat_group == 'low':
+                print(f'WARNING: No further high-group rats are available for assignment to {self.request_name}')
+                high_available = False
+            if rat_group == 'high':
+                print(f'WARNING: No further low-group rats are available for assignment to {self.request_name}')
+                low_available = False
+
+            # calculate delta for this proposal
+            delta_iter = abs(rat_pred)
+            
+            proposed_rfids = [rat]
+
+        elif len(available) >= 2:    
+
+            # get the highest and lowest predictions from available rats
+            max_rat = available_df.iloc[0]['rfid']  # first row (highest prediction)
+            min_rat = available_df.iloc[-1]['rfid']  # last row (lowest prediction)
+            max_rat_sex = available_df[available_df['rfid'] == max_rat]['sex'].iloc[0]
+            min_rat_sex = available_df[available_df['rfid'] == min_rat]['sex'].iloc[0]
+            max_rat_pred = available_df[available_df['rfid'] == max_rat][self.trait].iloc[0]
+            min_rat_pred = available_df[available_df['rfid'] == min_rat][self.trait].iloc[0]
+            max_rat_group = available_df[available_df['rfid'] == max_rat][f'{self.trait}_group'].iloc[0]
+            min_rat_group = available_df[available_df['rfid'] == min_rat][f'{self.trait}_group'].iloc[0]
+            
+            if max_rat_group == 'low':
+                print(f'WARNING: No further high-group rats are available for assignment to {self.request_name}')
+                high_available = False
+            if min_rat_group == 'high':
+                print(f'WARNING: No further low-group rats are available for assignment to {self.request_name}')
+                low_available = False
+
+            # calculate delta for this proposal
+            if high_available and low_available:
+                delta_iter = max_rat_pred - min_rat_pred
+                proposed_rfids = [min_rat, max_rat]
+            elif high_available and not low_available:
+                delta_iter = max_rat_pred - 0
+                proposed_rfids = [max_rat]
+            elif low_available and not high_available:
+                delta_iter = 0 - min_rat_pred
+                proposed_rfids = [min_rat]
         
         # calculate the proposed total delta if this proposal were to be executed
         proposed_delta = self.delta + delta_iter
 
         # return proposed delta and selected rats
-        return proposed_delta, [min_rat, max_rat]
+        return proposed_delta, proposed_rfids
 
 
     def assign_rattaca(self, rfids_to_assign, rattaca_requests = None, breeders_request = None):
@@ -679,136 +791,225 @@ class RATTACA(Request):
                 will be assigned by priority if needed
         '''
 
-        if not isinstance(rfids_to_assign, list) or len(rfids_to_assign) != 2:
-            raise TypeError('rfids_to_assign must be a list with two RFID elements')
-        
         all_rattaca_requests = [self] + rattaca_requests if rattaca_requests is not None else self
 
-        # validate that both rats are available
-        for rfid in rfids_to_assign:
+        # check input formatting
+        if not isinstance(rfids_to_assign, list):
+            raise TypeError('rfids_to_assign must be a list')
+        
+        if len(rfids_to_assign) > 2:
+            raise TypeError(f'Too many RFIDs ({len(rfids_to_assign)}) submitted for assignment. rfids_to_assign must be a list of 1 or 2 elements')
+
+        # validate that all rats are available for assignment
+        if rfids_to_assign is None or len(rfids_to_assign) == 0:
+            print(f'No RFIDs provided for assignment to {self.request_name}. Quitting assignment')
+            return
+
+        for rfid in rfids_to_assign[:]:
             if rfid not in self.available_rfids:
-                print(f'WARNING: RFID {rfid} is not in available_rfids, skipping assignment')
-                return
+                print(f'WARNING: RFID {rfid} is not available for assignment to {self.request_name}. Skipping.')
+                rfids_to_assign.remove(rfid)
             if rfid not in self.trait_metadata['rfid'].values:
-                print(f'ERROR: RFID {rfid} not found in trait_metadata, skipping assignment')
-                return
+                print(f'ERROR: RFID {rfid} not found in trait_metadata. Skipping assignment.')
+                rfids_to_assign.remove(rfid)
+        
+        if len(rfids_to_assign) == 0:
+            print(f'No provided RFIDs can be assigned to {self.request_name}. Quitting assignment')
+            return
 
-            # make sure rats are available
-        available_rfids = set(self.available_rfids)
-        for rfid in rfids_to_assign:
-            if rfid not in available_rfids:
-                print(f'RFID {rfid} is not available for assignment')
-                
-        # get rat metadata
-        min_rat = rfids_to_assign[0]
-        max_rat = rfids_to_assign[1]
-        min_rat_data = self._rfid_metadata(min_rat)
-        max_rat_data = self._rfid_metadata(max_rat)
-        
-        min_rat_sex = min_rat_data['sex']
-        min_rat_fam = min_rat_data['fam']
-        min_rat_group = min_rat_data['group']
-        min_rat_pred = min_rat_data['pred']
-        
-        max_rat_sex = max_rat_data['sex']
-        max_rat_fam = max_rat_data['fam']
-        max_rat_group = max_rat_data['group']
-        max_rat_pred = max_rat_data['pred']
-        
-        n_min_rat_sibs = len(min_rat_data['sibs'])
-        n_max_rat_sibs = len(max_rat_data['sibs'])
-
-        # count the number of remaining siblings that could be assigned before
-        # assigning the current rats
-        remaining_min_rat_sibs_allowed = \
-            self._get_n_remaining_per_fam(sex = min_rat_sex, fam = min_rat_fam)
-        remaining_max_rat_sibs_allowed = \
-            self._get_n_remaining_per_fam(sex = max_rat_sex, fam = max_rat_fam)
-
-        if remaining_min_rat_sibs_allowed == 0:
-            message = (
-                f'RFID {rfid} cannot be assigned. \n'
-                f'Breederpair {min_rat_fam} has already contributed {self.max_per_sex} {min_rat_sex} animals to {self.request_name} \n')
-            print(message)
-            exit
-        if remaining_max_rat_sibs_allowed == 0:
-            message = (
-                f'RFID {rfid} cannot be assigned. \n'
-                f'Breederpair {max_rat_fam} has already contributed {self.max_per_sex} {max_rat_sex} animals to {self.request_name} \n')
-            print(message)
-            exit
-        
         # track assignment success/failure
         assignment_made = False
 
-        # assign the high rat
-        if max_rat_sex == 'M':
-            if not self.is_satisfied_rattaca('M', 'high'):
-                self.assigned_males_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
-                self.assigned_fams['M_high'][max_rat_fam] = (max_rat, max_rat_sex)
-                self.remove([max_rat])
-                assignment_made = True
-            else:
-                print(f'Cannot assign {max_rat}: Male/high group already satisfied')
-                self.remove([max_rat])
-
-        elif max_rat_sex == 'F':
-            if not self.is_satisfied_rattaca('F', 'high'):
-                self.assigned_females_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
-                self.assigned_fams['F_high'][max_rat_fam] = (max_rat, max_rat_sex)
-                self.remove([max_rat])
-                assignment_made = True
-            else:
-                print(f'Cannot assign {max_rat}: Female/high group already satisfied')
-                self.remove([max_rat])
+        ### handle paired assignments (n=2) ###
+        if len(rfids_to_assign) == 2:                
         
-        # check if remaining siblings should be prioritized for HSW breeders
-        if breeders_request is not None:
-            if n_max_rat_sibs == 1:
+            # get rat metadata
+            rat_1 = rfids_to_assign[0]
+            rat_2 = rfids_to_assign[1]
+            rat_1_data = self._rfid_metadata(rat_1)
+            rat_2_data = self._rfid_metadata(rat_2)
+            
+            # determine which is min and which is max
+            if rat_2_data['pred'] > rat_1_data['pred']:
+                min_rat = rat_1
+                max_rat = rat_2
+                min_rat_data = rat_1_data
+                max_rat_data = rat_2_data   
+                n_min_rat_sibs = len(rat_1_data['sibs'])
+                n_max_rat_sibs = len(rat_2_data['sibs'])         
+            else:
+                min_rat = rat_2
+                max_rat = rat_1
+                min_rat_data = rat_2_data
+                max_rat_data = rat_1_data
+                n_min_rat_sibs = len(rat_2_data['sibs'])
+                n_max_rat_sibs = len(rat_1_data['sibs'])         
+
+            min_rat_sex = min_rat_data['sex']
+            min_rat_fam = min_rat_data['fam']
+            min_rat_group = min_rat_data['group']
+            min_rat_pred = min_rat_data['pred']
+
+            max_rat_sex = max_rat_data['sex']
+            max_rat_fam = max_rat_data['fam']
+            max_rat_group = max_rat_data['group']
+            max_rat_pred = max_rat_data['pred']
+
+            # check family constraints before proceeding
+            remaining_min_rat_sibs_allowed = self._get_n_remaining_per_fam(sex = min_rat_sex, fam = min_rat_fam)
+            remaining_max_rat_sibs_allowed = self._get_n_remaining_per_fam(sex = max_rat_sex, fam = max_rat_fam)
+
+            if remaining_min_rat_sibs_allowed == 0:
+                message = (
+                    f'RFID {min_rat} cannot be assigned. \n'
+                    f'Breederpair {min_rat_fam} has already contributed {self.max_per_sex} {min_rat_sex} animals to {self.request_name} \n')
+                print(message)
+                return
+            if remaining_max_rat_sibs_allowed == 0:
+                message = (
+                    f'RFID {max_rat} cannot be assigned. \n'
+                    f'Breederpair {max_rat_fam} has already contributed {self.max_per_sex} {max_rat_sex} animals to {self.request_name} \n')
+                print(message)
+                return
+        
+            # assign the high rat 
+            if max_rat_sex == 'M':
+                if not self.is_satisfied_sample('M', 'high'):
+                    self.assigned_males_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
+                    self.assigned_fams['M_high'][max_rat_fam] = (max_rat, max_rat_sex)
+                    assignment_made = True
+                else:
+                    print(f'Cannot assign {max_rat}: Male/high group already satisfied for {self.request_name}')
+                
+            elif max_rat_sex == 'F':
+                if not self.is_satisfied_sample('F', 'high'):
+                    self.assigned_females_high[max_rat] = (max_rat_sex, max_rat_pred, max_rat_group)
+                    self.assigned_fams['F_high'][max_rat_fam] = (max_rat, max_rat_sex)
+                    assignment_made = True
+                else:
+                    print(f'Cannot assign {max_rat}: Female/high group already satisfied for {self.request_name}')
+            
+            # remove the assigned (or unassignable) high rat from availability
+            self.remove([max_rat])
+        
+            # check if remaining siblings should be prioritized for HSW breeders
+            if breeders_request is not None and n_max_rat_sibs == 1:
                 breeder_sib = max_rat_data['sibs']
                 if max_rat_fam not in breeders_request.assigned_fams[max_rat_sex]:
                     breeders_request.assign_hsw_breeders(
                         rfids_to_assign = breeder_sib,
                         non_breeder_requests = all_rattaca_requests)
 
-        # remove siblings from availability
-        self._update_available_rats(by='fam')
+            # # remove siblings from availability
+            # self._update_available_rats(by='fam')
 
-        # assign the low rat
-        if min_rat_sex == 'M':
-            if not self.is_satisfied_rattaca('M', 'low'):
-                self.assigned_males_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
-                self.assigned_fams['M_low'][min_rat_fam] = (min_rat, min_rat_sex)
-                self.remove([min_rat])
-                assignment_made = True
-            else:
-                print(f'Cannot assign {min_rat}: Male/low group already satisfied')
-                self.remove([min_rat])
+            # assign the low rat
+            if min_rat_sex == 'M':
+                if not self.is_satisfied_sample('M', 'low'):
+                    self.assigned_males_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
+                    self.assigned_fams['M_low'][min_rat_fam] = (min_rat, min_rat_sex)
+                    assignment_made = True
+                else:
+                    print(f'Cannot assign {min_rat}: Male/low group already satisfied for {self.request_name}')
 
-        elif min_rat_sex == 'F':
-            if not self.is_satisfied_rattaca('F', 'low'):
-                self.assigned_females_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
-                self.assigned_fams['F_low'][min_rat_fam] = (min_rat, min_rat_sex)
-                self.remove([min_rat])
-                assignment_made = True
-            else:
-                print(f'Cannot assign {min_rat}: Female/low group already satisfied')
-                self.remove([min_rat])
+            elif min_rat_sex == 'F':
+                if not self.is_satisfied_sample('F', 'low'):
+                    self.assigned_females_low[min_rat] = (min_rat_sex, min_rat_pred, min_rat_group)
+                    self.assigned_fams['F_low'][min_rat_fam] = (min_rat, min_rat_sex)
+                    assignment_made = True
+                else:
+                    print(f'Cannot assign {min_rat}: Female/low group already satisfied for {self.request_name}')
+                    
+            # remove the assigned (or unassignable) low rat from availability
+            self.remove([min_rat])
 
-        # check if remaining siblings should be prioritized for HSW breeders
-        if breeders_request is not None:
-            if n_min_rat_sibs == 1:
+            # check if remaining siblings should be prioritized for HSW breeders
+            if breeders_request is not None and n_min_rat_sibs == 1:
                 breeder_sib = min_rat_data['sibs']
                 if min_rat_fam not in breeders_request.assigned_fams[min_rat_sex]:
                     breeders_request.assign_hsw_breeders(
                         rfids_to_assign = breeder_sib,
                         non_breeder_requests = all_rattaca_requests)
 
-        # update delta
-        if assignment_made:
-            self.delta += max_rat_pred - min_rat_pred
+            # # remove siblings from availability
+            # self._update_available_rats(by='fam')
+
+            # update delta
+            if assignment_made:
+                self.delta += max_rat_pred - min_rat_pred
         
-        # update available rats list
+
+        ### handle singleton assignments (n=1) ###
+        elif len(rfids_to_assign) == 1:
+
+            rat = rfids_to_assign[0]
+            rat_data = self._rfid_metadata(rat)
+            rat_sex = rat_data['sex']
+            rat_fam = rat_data['fam']
+            rat_group = rat_data['group']
+            rat_pred = rat_data['pred']
+            rat_sibs = rat_data['sibs']
+            n_rat_sibs = len(rat_sibs)
+
+            # check family constraints before proceeding
+            remaining_rat_sibs_allowed = self._get_n_remaining_per_fam(sex = rat_sex, fam = rat_fam)
+            if remaining_rat_sibs_allowed == 0:
+                message = (
+                    f'RFID {rat} cannot be assigned. \n'
+                    f'Breederpair {rat_fam} has already contributed {self.max_per_sex} {rat_sex} animals to {self.request_name} \n')
+                print(message)
+                return
+
+            # assign based on sex and group
+            if rat_sex == 'M' and rat_group == 'high':
+                if not self.is_satisfied_sample('M', 'high'):
+                    self.assigned_males_high[rat] = (rat_sex, rat_pred, rat_group)
+                    self.assigned_fams['M_high'][rat_fam] = (rat, rat_sex)
+                    assignment_made = True
+                    self.delta += abs(rat_pred)
+                else:
+                    print(f'Cannot assign {rat}: Male/high group already satisfied for {self.request_name}')
+            
+            elif rat_sex == 'M' and rat_group == 'low':
+                if not self.is_satisfied_sample('M', 'low'):
+                    self.assigned_males_low[rat] = (rat_sex, rat_pred, rat_group)
+                    self.assigned_fams['M_low'][rat_fam] = (rat, rat_sex)
+                    assignment_made = True
+                    self.delta += abs(rat_pred)
+                else:
+                    print(f'Cannot assign {rat}: Male/low group already satisfied for {self.request_name}')
+            
+            elif rat_sex == 'F' and rat_group == 'high':
+                if not self.is_satisfied_sample('F', 'high'):
+                    self.assigned_females_high[rat] = (rat_sex, rat_pred, rat_group)
+                    self.assigned_fams['F_high'][rat_fam] = (rat, rat_sex)
+                    assignment_made = True
+                    self.delta += abs(rat_pred)
+                else:
+                    print(f'Cannot assign {rat}: Female/high group already satisfied for {self.request_name}')
+            
+            elif rat_sex == 'F' and rat_group == 'low':
+                if not self.is_satisfied_sample('F', 'low'):
+                    self.assigned_females_low[rat] = (rat_sex, rat_pred, rat_group)
+                    self.assigned_fams['F_low'][rat_fam] = (rat, rat_sex)
+                    assignment_made = True
+                    self.delta += abs(rat_pred)
+                else:
+                    print(f'Cannot assign {rat}: Female/low group already satisfied for {self.request_name}')
+                    
+            # remove the assigned (or unassignable) rat from availability
+            self.remove([rat])
+            
+            # check if remaining siblings should be prioritized for HSW breeders
+            if breeders_request is not None and n_rat_sibs == 1:
+                breeder_sib = rat_sibs
+                if rat_fam not in breeders_request.assigned_fams[rat_sex]:
+                    breeders_request.assign_hsw_breeders(
+                        rfids_to_assign=breeder_sib,
+                        non_breeder_requests=all_rattaca_requests)
+            
+
+        # update available rats list (for both paired and singleton assignments)
         self._update_available_rats(by='group')
         self._update_available_rats(by='fam')
 
@@ -817,7 +1018,7 @@ class RATTACA(Request):
         '''Update available rats list based on satisfied groups.'''
         
         if by == 'group':
-            if self.is_satisfied_rattaca('M', 'high'):
+            if self.is_satisfied_sample('M', 'high'):
                 high_male_rfids = self.trait_metadata[
                     (self.trait_metadata['sex'] == 'M') & 
                     (self.trait_metadata[f'{self.trait}_group'] == 'high')]['rfid'].tolist()
@@ -825,7 +1026,7 @@ class RATTACA(Request):
                     if rfid in self.available_rfids:
                         self.available_rfids.remove(rfid)
                         
-            if self.is_satisfied_rattaca('M', 'low'):
+            if self.is_satisfied_sample('M', 'low'):
                 low_male_rfids = self.trait_metadata[
                     (self.trait_metadata['sex'] == 'M') & 
                     (self.trait_metadata[f'{self.trait}_group'] == 'low')]['rfid'].tolist()
@@ -833,7 +1034,7 @@ class RATTACA(Request):
                     if rfid in self.available_rfids:
                         self.available_rfids.remove(rfid)
                         
-            if self.is_satisfied_rattaca('F', 'high'):
+            if self.is_satisfied_sample('F', 'high'):
                 high_female_rfids = self.trait_metadata[
                     (self.trait_metadata['sex'] == 'F') & 
                     (self.trait_metadata[f'{self.trait}_group'] == 'high')]['rfid'].tolist()
@@ -841,7 +1042,7 @@ class RATTACA(Request):
                     if rfid in self.available_rfids:
                         self.available_rfids.remove(rfid)
                         
-            if self.is_satisfied_rattaca('F', 'low'):
+            if self.is_satisfied_sample('F', 'low'):
                 low_female_rfids = self.trait_metadata[
                     (self.trait_metadata['sex'] == 'F') & 
                     (self.trait_metadata[f'{self.trait}_group'] == 'low')]['rfid'].tolist()

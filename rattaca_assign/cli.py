@@ -64,5 +64,8 @@ def parse_args(args=None):
     parser.add_argument('-u', '--update_requests',
         required=False, type=str, nargs=1,
         dest='updates', help='path to json file with requests to be updated by shipping sheets')
-
+    parser.add_argument('-v', '--verbose',
+            action='store_true',
+            dest='verbose', help='enable verbose output for debugging')
+    
     return parser.parse_args(args)

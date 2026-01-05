@@ -203,7 +203,7 @@ class Request:
         '''
         
         if self.assignment_type == 'rattaca':
-            return self.is_satisfied_rattaca(sex, group)
+            return self.is_satisfied_rattaca()
         elif self.assignment_type == 'random':
             return self.is_satisfied_random(sex)
         elif self.assignment_type == 'hsw_breeders':
