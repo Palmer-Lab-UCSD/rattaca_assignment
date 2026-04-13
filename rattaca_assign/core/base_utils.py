@@ -219,6 +219,7 @@ def plot_assignments(preds,
 
     # columns to process for plotting
     trait_rank = f'{trait}_rank'
+    trait_zscore = f'{trait}_zscore'
     group_col = f'{trait}_group'
     
     # filter for assigned rows (handle different types of True values)
@@ -243,29 +244,29 @@ def plot_assignments(preds,
     if jitter is not None:
         # add jitter to all points
         x_all = trait_df[trait_rank].values + np.random.uniform(-jitter[0], jitter[0], len(trait_df))
-        y_all = trait_df[trait].values + np.random.uniform(-jitter[0], jitter[0], len(trait_df))
+        y_all = trait_df[trait_zscore].values + np.random.uniform(-jitter[0], jitter[0], len(trait_df))
         
         # add jitter to high trait values
         high_df = trait_df[(trait_df[group_col] == 'high') & (trait_df['rfid'].isin(assigned_rfids))]
         x_trait_high = high_df[trait_rank].values + np.random.uniform(-jitter[1], jitter[1], len(high_df))
-        y_trait_high = high_df[trait].values + np.random.uniform(-jitter[1], jitter[1], len(high_df))
+        y_trait_high = high_df[trait_zscore].values + np.random.uniform(-jitter[1], jitter[1], len(high_df))
         
         # add jitter to low trait values
         low_df = trait_df[(trait_df[group_col] == 'low') & (trait_df['rfid'].isin(assigned_rfids))]
         x_trait_low = low_df[trait_rank].values + np.random.uniform(-jitter[1], jitter[1], len(low_df))
-        y_trait_low = low_df[trait].values + np.random.uniform(-jitter[1], jitter[1], len(low_df))
+        y_trait_low = low_df[trait_zscore].values + np.random.uniform(-jitter[1], jitter[1], len(low_df))
     else:
         # no jitter
         x_all = trait_df[trait_rank].values
-        y_all = trait_df[trait].values
+        y_all = trait_df[trait_zscore].values
         
         high_df = trait_df[(trait_df[group_col] == 'high') & (trait_df['rfid'].isin(assigned_rfids))]
         x_trait_high = high_df[trait_rank].values
-        y_trait_high = high_df[trait].values
+        y_trait_high = high_df[trait_zscore].values
         
         low_df = trait_df[(trait_df[group_col] == 'low') & (trait_df['rfid'].isin(assigned_rfids))]
         x_trait_low = low_df[trait_rank].values
-        y_trait_low = low_df[trait].values
+        y_trait_low = low_df[trait_zscore].values
     
     # create inferno colormap 
     inferno_cmap = plt.cm.inferno
@@ -286,7 +287,7 @@ def plot_assignments(preds,
     
     # set labels and title
     plt.xlabel(f"{trait}\nprediction rank", fontweight='bold')
-    plt.ylabel(f"{trait}\nprediction", fontweight='bold')
+    plt.ylabel(f"{trait}\nprediction Z-score", fontweight='bold')
     
     if gen is not None:
         plt.title(f"RATTACA gen{gen}\n{trait_name} assignments", pad=15)

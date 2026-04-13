@@ -10,6 +10,7 @@ import sys
 import pandas as pd
 import json
 import glob
+import shutil
 from random import choice
 from pprint import pprint, pformat
 from os import path
@@ -122,7 +123,9 @@ def run_assignments(args):
         for random_req in random_requests:
             # ensure random projects only use rats from families that have already
             # contributed to RATTACA or breeders when possible
-            assign_to_random_projects(random_req, rattaca_requests, breeder_requests)
+            random_req.assign_randproj(
+                remaining_requests = rattaca_requests, 
+                fill_request = True)
     
     # return all request objects for output processing
     result_requests = []
@@ -321,7 +324,7 @@ def permute_one_round(open_requests, verbose = False):
     # when only one request remains open, simply assign to the request
     if n_open_requests == 1:
         last_request = open_requests[0]
-        print(f'last_request: {last_request}')
+        print(f'last_request: {last_request.request_name}')
         project_delta, assign_rfids = last_request.proposal() 
         print(f'assign_rfids: {assign_rfids}')
         assigned_this_round = last_request.assign(assign_rfids)
@@ -561,6 +564,11 @@ def output_assignment_preds(assignments, preds, outdir, requests, request_map=No
         req_preds = req_assignments.merge(req_preds, on='rfid')
         out_cols = assign_cols_out + pred_cols + ['comments']
         req_preds = req_preds[out_cols]
+
+        # order dfs by animal ID
+        req_assignments = req_assignments.sort_values(by=['animalid'])
+        req_preds = req_preds.sort_values(by=['animalid'])
+
 
         if Path(outdir).parts[-1] != 'request_results':
             req_outdir = os.path.join(outdir, 'request_results')
