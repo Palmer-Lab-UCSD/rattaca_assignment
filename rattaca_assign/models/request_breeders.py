@@ -37,7 +37,7 @@ class HSWBreeders(Request):
 
         # initialize lists of breeder pairs with rats available for assignment
         # as breeders
-        self.available_fams = {}
+        # self.available_fams = {}
         
         self.all_fams = self.colony_df['breederpair'].unique().tolist()
         fams_with_males = self.colony_df.groupby('breederpair').\

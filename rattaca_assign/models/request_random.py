@@ -580,26 +580,23 @@ class RandProj(Request):
             rat_sex = assigned_rat[1]
             
             # assign the rat and remove it from availability
-            if breeder_sex == 'M':
+            if rat_sex == 'M':
                 assign_to = self.assigned_males
                 rat_fam = sampled_m_fam
-            elif breeder_sex == 'F':
+            elif rat_sex == 'F':
                 assign_to = self.assigned_females
                 rat_fam = sampled_f_fam
 
-            if self.is_satisfied_hsw_breeders(sex = rat_sex, family = rat_fam):
-                message = (f'RFID {breeder_rfid} could not be assigned:'
-                f'{breeder_sex} assignments for breeder pair {breeder_fam}'
-                'already satisfied')
+            if self.is_satisfied_random(sex = rat_sex):
+                message = (f'RFID {rat_rfid} could not be assigned:'
+                f'{rat_sex} assignments already satisfied')
                 print(message)
             else:
-                assign_to[breeder_rfid] = breeders_to_assign[breeder_rfid]
-                successfully_assigned.append(breeder_rfid)
+                assign_to[rat_rfid] = (rat_sex, rat_fam)
+                successfully_assigned.append(rat_rfid)
                 # print(f'Assigned {breeder_sex} breeder {breeder_rfid} from pair {breeder_fam} by priority')
         
-        self.remove(
-            rats_to_remove = successfully_assigned, 
-            remaining_requests = remaining_requests)
+        self.remove(successfully_assigned)
 
         # fill all remaining assignments if desired
         if fill_request is True:
@@ -652,8 +649,7 @@ class RandProj(Request):
 
             if self.is_satisfied(sex=rat_sex, family=rat_fam):
                 message = (
-                    f'RFID {rat_rfid} could not be assigned: {rat_sex} \
-                        assignments for breeder pair {rat_fam} already satisfied'
+                    f'RFID {rat_rfid} could not be assigned: {rat_sex} assignments for breeder pair {rat_fam} already satisfied'
                 )
                 print(message)
 
@@ -662,7 +658,5 @@ class RandProj(Request):
                 successfully_assigned.append(rat_rfid)
                 # print(f'Assigned {breeder_sex} breeder: {breeder_rfid} from pair {breeder_fam} to fill remainder')
             
-        self.remove(
-            rats_to_remove = successfully_assigned, 
-            remaining_requests = [])
+        self.remove(successfully_assigned)
 
